@@ -1,0 +1,26 @@
+{
+  "model": "xgboost",
+  "objective": "group_cv_top1",
+  "best_params": {
+    "n_estimators": 150,
+    "learning_rate": 0.11506408247250169,
+    "max_depth": 8,
+    "min_child_weight": 9.01907884845086,
+    "subsample": 0.9085081386743783,
+    "colsample_bytree": 0.6296178606936361,
+    "reg_lambda": 0.15251273957388442,
+    "gamma": 0.5793452976256486,
+    "scale_pos_weight": 6.635802485202448
+  },
+  "best_value": 0.8440117023659244,
+  "search_seconds": 1453.685057500028,
+  "n_trials_total": 40,
+  "max_train_rows_per_fold_during_search": 300000,
+  "outputs": {
+    "trials": "results/tuning/xgboost/optuna_trials.csv",
+    "history_plot": "results/tuning/xgboost/optimization_history.png",
+    "importance_plot": "results/tuning/xgboost/parameter_importance.png",
+    "tuned_model": "results/tuning/xgboost/tuned_model.joblib",
+    "comparison": "results/tuning/xgboost/tuned_vs_untuned.csv"
+  }
+}
