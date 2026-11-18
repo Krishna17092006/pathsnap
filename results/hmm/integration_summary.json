@@ -1,0 +1,19 @@
+{
+  "partition": "student_test",
+  "n_student_test_trips": 10,
+  "n_integration_failures": 0,
+  "top1_improved_trips": 2,
+  "top1_not_improved_trips": 8,
+  "student_test_means": {
+    "top1_classifier": 0.873243326578368,
+    "top1_hmm": 0.8559930011912593,
+    "route_continuity_clf": 0.9436766533841026,
+    "route_continuity_hmm": 0.9618824180267923,
+    "classifier_route_f1": 0.7084264658736149,
+    "hmm_route_f1": 0.7374157019919942,
+    "inference_ms": 1867.1759722999923
+  },
+  "max_inference_ms": 3798.37498400002,
+  "mean_inference_ms": 1867.1759722999923,
+  "note": "Inference was run after setting inference_trip.route = None. Reference route was passed only to score_trip."
+}
