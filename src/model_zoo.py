@@ -31,7 +31,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from .config import SEED  # noqa: F401  (for model factories: random_state=SEED)
+from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+
+from .config import SEED
 
 
 @dataclass(frozen=True)
@@ -53,9 +58,40 @@ class ModelSpec:
         return self.config.get("description", "")
 
 
+# ------------------------------------------------------------------ Krishna Jha: models 1-2
+def make_logreg(C: float = 1.0, class_weight=None, max_iter: int = 2000) -> Pipeline:
+    """Model 1. Linear decision boundary on standardised features; well-calibrated probabilities
+    when unweighted, which matters because the HMM uses them as emissions."""
+    return Pipeline([
+        ("scale", StandardScaler()),
+        ("clf", LogisticRegression(C=C, class_weight=class_weight, max_iter=max_iter, random_state=SEED)),
+    ])
+
+
+def make_knn(n_neighbors: int = 50, weights: str = "uniform", algorithm: str = "auto") -> Pipeline:
+    """Model 2. Instance-based: a candidate is scored by the labels of its most similar training
+    candidates. Scaling is essential, otherwise metre-valued features dominate the distance."""
+    return Pipeline([
+        ("scale", StandardScaler()),
+        ("clf", KNeighborsClassifier(n_neighbors=n_neighbors, weights=weights, algorithm=algorithm, n_jobs=-1)),
+    ])
+
+
 REGISTRY: dict[str, ModelSpec] = {
-    # Krishna Jha: Logistic Regression, KNN | KKR: Gaussian Naive Bayes
-    # Joshua: Random Forest, XGBoost        | Julia: MLP
+    "logreg": ModelSpec("Linear / probabilistic", make_logreg, {
+        "params": {"C": 1.0, "class_weight": None},
+        "description": "StandardScaler + LogisticRegression, C=1, unweighted",
+    }),
+    "logreg_balanced": ModelSpec("Linear / probabilistic", make_logreg, {
+        "params": {"C": 1.0, "class_weight": "balanced"},
+        "description": "StandardScaler + LogisticRegression, C=1, class_weight=balanced",
+    }),
+    "knn": ModelSpec("Instance-based", make_knn, {
+        "params": {"n_neighbors": 50, "weights": "uniform"},
+        "max_train_rows": 300_000,
+        "description": "StandardScaler + KNN, k=50, uniform weights, 300k-row stratified training sample",
+    }),
+    # KKR: Gaussian Naive Bayes | Joshua: Random Forest, XGBoost | Julia: MLP  -> add entries here
 }
 
 
