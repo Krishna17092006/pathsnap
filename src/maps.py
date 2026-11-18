@@ -8,8 +8,14 @@ import numpy as np
 
 from .geo import haversine_m
 from .network import RoadNetwork
-from .plot_style import (CRITICAL, GPS_COLOR, INK, INK_2, NETWORK_COLOR, PARTITION_COLOR, PARTITION_LABEL, PRED_COLOR,
-                         ROUTE_COLOR)
+from .plot_style import (CRITICAL, GPS_COLOR, HMM_COLOR, INK, INK_2, NETWORK_COLOR, PARTITION_COLOR, PARTITION_LABEL,
+                         PRED_COLOR, ROUTE_COLOR)
+
+ERROR_TEXT = {
+    "wrong_direction": "right road, wrong direction",
+    "wrong_road": "wrong road",
+    "no_prediction": "no prediction (no candidate)",
+}
 
 
 def _base_map(lat: float, lon: float, zoom: int = 14) -> folium.Map:
@@ -154,6 +160,77 @@ def prediction_map(gps, predicted_route, title: str, max_points: int = 1500) -> 
     m.fit_bounds([[float(all_pts[:, 0].min()), float(all_pts[:, 1].min())],
                   [float(all_pts[:, 0].max()), float(all_pts[:, 1].max())]])
     add_legend(m, title, [("Predicted route", PRED_COLOR, "line"), ("GPS observation", GPS_COLOR, "dot")])
+    return m
+
+
+def result_map(trip, net: RoadNetwork, fixes, title: str, network_buffer_m: float = 150.0,
+               max_points: int = 4000, clf_name: str = "Classifier-only") -> folium.Map:
+    """Offline analysis map: GPS, nearby network, reference route, predictions and their errors.
+
+    `fixes` has one row per fix with `fix_idx`, `lon`, `lat`, and optionally:
+      arc_clf / arc_hmm   predicted arc ids (-1 = no prediction)
+      err_clf / err_hmm   None/"correct" or one of ERROR_TEXT's keys
+    Uses the reference route, so it is for development and the report, never for the evaluator UI.
+    """
+    lon, lat = fixes["lon"].to_numpy(), fixes["lat"].to_numpy()
+    px, py = net.proj.to_xy(lon, lat)
+    m = _base_map(float(np.mean(lat)), float(np.mean(lon)))
+
+    stride = max(1, len(px) // 2000)
+    near = np.unique(net.arcs_within(px[::stride], py[::stride], network_buffer_m)["arc_id"].to_numpy())
+    fg_net = folium.FeatureGroup(name=f"Road network (within {network_buffer_m:.0f} m)")
+    segs = net.arc_segments_lonlat(near)
+    if segs:
+        folium.PolyLine(segs, color=NETWORK_COLOR, weight=1.5, opacity=0.8).add_to(fg_net)
+    fg_net.add_to(m)
+
+    legend = [("Road network", NETWORK_COLOR, "line")]
+    if trip.has_route:
+        fg_ref = folium.FeatureGroup(name="Reference route")
+        for line in net.route_polylines(trip.route):
+            folium.PolyLine(line, color=ROUTE_COLOR, weight=8, opacity=0.5, tooltip="Reference route").add_to(fg_ref)
+        fg_ref.add_to(m)
+        legend.append(("Reference route", ROUTE_COLOR, "line"))
+
+    fg_gps = folium.FeatureGroup(name="GPS observations")
+    step = max(1, int(np.ceil(len(lon) / max_points)))
+    for i in range(0, len(lon), step):
+        folium.CircleMarker([lat[i], lon[i]], radius=2.5, color=GPS_COLOR, weight=1, fill=True, fill_color=GPS_COLOR,
+                            fill_opacity=0.7, tooltip=f"fix #{int(fixes['fix_idx'].iat[i])}").add_to(fg_gps)
+    fg_gps.add_to(m)
+    legend.append(("GPS observation", GPS_COLOR, "dot"))
+
+    for col, name, color, dash in (("arc_clf", f"{clf_name} prediction", PRED_COLOR, "8,6"),
+                                   ("arc_hmm", "HMM prediction", HMM_COLOR, None)):
+        if col not in fixes:
+            continue
+        arcs = np.unique(fixes[col].to_numpy())
+        arcs = arcs[arcs >= 0]
+        if not len(arcs):
+            continue
+        fg = folium.FeatureGroup(name=name)
+        folium.PolyLine(net.arc_segments_lonlat(arcs, dedupe_two_way=False), color=color, weight=4, opacity=0.95,
+                        dash_array=dash, tooltip=name).add_to(fg)
+        fg.add_to(m)
+        legend.append((name, color, "dash" if dash else "line"))
+
+    has_hmm = "err_hmm" in fixes
+    for col, who in (("err_clf", clf_name), ("err_hmm", "HMM")):
+        if col not in fixes:
+            continue
+        bad = fixes[fixes[col].isin(list(ERROR_TEXT))]
+        fg = folium.FeatureGroup(name=f"{who} errors ({len(bad)})", show=(col == "err_hmm") or not has_hmm)
+        for r in bad.itertuples():
+            folium.CircleMarker([r.lat, r.lon], radius=6, color=CRITICAL, weight=2, fill=False,
+                                tooltip=f"{who} error at fix #{r.fix_idx}: {ERROR_TEXT[getattr(r, col)]}").add_to(fg)
+        fg.add_to(m)
+    if any(c in fixes for c in ("err_clf", "err_hmm")):
+        legend.append(("Wrong prediction at this fix", CRITICAL, "ring"))
+
+    _endpoint_markers(m, [lat[0], lon[0]], [lat[-1], lon[-1]])
+    folium.LayerControl(collapsed=False).add_to(m)
+    m.fit_bounds([[float(lat.min()), float(lon.min())], [float(lat.max()), float(lon.max())]])
+    add_legend(m, title, legend)
     return m
 
 
