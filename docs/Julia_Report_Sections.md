@@ -97,7 +97,7 @@ The emission log score of candidate arc `a` at fix `t` is
 
 `E_t(a) = w · log(max(p(a | fix_t), 1e-6))`
 
-- `p` is the classifier probability (the MLP in the current integration).
+- `p` is the classifier probability from the shipped model, the Optuna-tuned XGBoost in `artifacts/model.joblib`. Any registered classifier can be used; `tests/test_pipeline_models.py` checks each one.
 - `w` is the emission weight.
 - Clipping at `1e-6` prevents `log 0`.
 
@@ -123,7 +123,7 @@ The arg-max is stored as a back-pointer, and the best final state of each segmen
 
 ### 5.4 How are missing candidates and gaps handled?
 
-- **Fix with no candidates.** The fix is left unmatched (`arc_hmm = -1`) and removed from the state sequence. The next fix that has candidates is linked to the previous one using the elapsed time and GPS displacement across the missing fix. The candidate miss rate on student_test is 0.05% (`student_test_metrics.json`), so this case is rare. The integration run had 0 unmatched fixes on all 10 trips (`n_unmatched_fixes` in `results/hmm/classifier_vs_hmm.csv`).
+- **Fix with no candidates.** The fix is left unmatched (`arc_hmm = -1`) and removed from the state sequence. The next fix that has candidates is linked to the previous one using the elapsed time and GPS displacement across the missing fix. The candidate miss rate on student_test is 0.05% (`student_test_metrics.json`), so this case is rare. The integration run had 0 unmatched fixes on all 10 trips (`n_unmatched_fixes` in `results/hmm/xgboost/classifier_vs_hmm.csv`).
 - **Time gap.** If `dt` exceeds the gap threshold (30 s in `artifacts/hmm.json`), or is zero, negative or not finite, the current segment is closed and traced back. A new, independent Viterbi segment starts at the next fix. A long gap makes the route distance between the fixes meaningless, so no transition is forced across it.
 - **Very long trips.** Back-pointers are kept only for the open segment, and each segment is traced back as soon as it closes. This avoids one full-trip dynamic-programming matrix.
 
@@ -134,38 +134,37 @@ If every transition from the previous candidate set to the current one is `-inf`
 ### 5.6 Did the HMM help? (classifier-only vs HMM)
 
 Decoder tuning used TRAIN trips only, never student_test or evaluator data (`results/hmm/decoder_grid.csv`, `tuning_summary.json`):
-- Two size-stratified train trips (00000026, 00000006).
+- Two size-stratified train trips (00000026, 00000006), with MLP emissions (the grid was run before the tuned XGBoost was exported).
 - Eight configurations: beta ∈ {25, 100}, gap threshold ∈ {30, 60} s, emission weight ∈ {0.5, 1}, sigma = 8 m.
-- Selected: `beta = 100`, `gap_threshold_s = 30`, `emission_weight = 1`.
+- Selected: `beta = 100`, `gap_threshold_s = 30`, `emission_weight = 1`, kept in `artifacts/hmm.json`.
 
-The 30 s and 60 s gap thresholds gave identical results on these trips. This is a small smoke grid, not a full search: the parameters are a reasonable setting, not a proven optimum.
+The 30 s and 60 s gap thresholds gave identical results on these trips. This is a small smoke grid, not a full search: the parameters are a reasonable setting, not a proven optimum. Re-tuning with XGBoost emissions on TRAIN trips (`python -m src.tune_hmm`) is optional.
 
-Results on the 10 student-test trips (`results/hmm/classifier_vs_hmm.csv`, mean over trips):
+Results on the 10 student-test trips with the tuned XGBoost (`results/hmm/xgboost/classifier_vs_hmm.csv` and `integration_summary.json`, mean over trips):
 
 | Metric | Classifier only | Classifier + HMM | Trips improved |
 |---|---|---|---|
-| Top-1 accuracy | 0.8732 | 0.8560 | 2 / 10 |
-| Route continuity | 0.9437 | 0.9619 | 10 / 10 |
-| Route F1 (arc sequence) | 0.7084 | 0.7374 | 8 / 10 |
+| Top-1 accuracy | 0.8845 | 0.8665 | 2 / 10 |
+| Route continuity | 0.9443 | 0.9633 | 10 / 10 |
+| Route F1 (arc sequence) | 0.7183 | 0.7434 | 8 / 10 |
 
 **Answer: yes for route-level quality, no for pointwise accuracy.**
 
-- **Route level.** The HMM's job is to output a drivable route, and it does that better. Continuity rises on every trip, and route F1 rises on 8 of 10. The largest F1 gains are on trips 00000007 (0.697 → 0.793) and 00000056 (0.823 → 0.881).
-- **Pointwise accuracy.** Top-1 rises only on 00000052 (0.947 → 0.973) and 00000056 (0.895 → 0.909). It falls on the other 8, by up to 5 percentage points (00000077: 0.687 → 0.637; 00000007: 0.928 → 0.880).
+- **Route level.** The HMM's job is to output a drivable route, and it does that better. Continuity rises on every trip, and route F1 rises on 8 of 10. The largest F1 gains are on trips 00000052 (0.857 → 0.933) and 00000007 (0.714 → 0.778); route precision rises on 8 of 10 trips because the HMM removes isolated off-route arcs.
+- **Pointwise accuracy.** Top-1 rises on 00000052 (0.954 → 0.989) and 00000056 (0.900 → 0.909), is unchanged on 00000009 (0.872), and falls on the other 7, by up to 6 percentage points (00000077: 0.722 → 0.658; 00000065: 0.838 → 0.781; 00000007: 0.932 → 0.887).
 - **Why Top-1 falls.** The transition term favours connected sequences. Where the classifier is confidently right on an isolated fix that the route model finds implausible, the HMM overrides it. This happens most at junctions, U-turns and revisited arcs, where the reference route is itself imperfect (`PROBLEM_STATEMENT.md`: 14 disconnected consecutive arcs across 90 trips, plus U-turns).
-- **Trip 00000077.** It has low route F1 for both methods (~0.29): about 1,470 predicted arcs against 268 reference arcs. Recall is high (0.95–0.97) but precision is low, which suggests the prediction covers a much larger part of the network than the reference route does.
-- **Maps.** Maps of the cases where the HMM did not help are in `maps/results/00000000_hmm_no_improvement.html`, `00000007_…` and `00000077_…`. The trip list is in `results/hmm/hmm_non_improvements.csv`.
+- **Trip 00000077.** It has low route F1 for both methods (about 0.30): about 1,400–1,450 predicted arcs against 268 reference arcs. Recall is high (0.96–0.97) but precision is about 0.18, which suggests the prediction covers a much larger part of the network than the reference route does.
+- **Maps.** `maps/results/xgboost_hmm/` has the two trips where the HMM helped least (00000077 and 00000065), with per-fix error types (correct, wrong direction, wrong road) as in the other result maps. All non-improvement trips are listed in `results/hmm/xgboost/hmm_non_improvements.csv`.
 
 A larger tuning sweep could shift this trade-off: a higher emission weight leans towards Top-1, a lower one towards continuity. Any such sweep must stay on TRAIN trips.
 
 ## Integration notes
 
 - **Inference has no access to the reference route.** `src.pipeline.load_artifacts()` loads the model, the ordered feature list and the decoder settings once. `predict_trip()` generates candidates and features, scores them with the classifier and runs Viterbi. It returns per-fix predictions, a collapsed route and a route polyline. The evaluation harness (`src/evaluate_hmm.py`) sets `inference_trip.route = None` before calling `predict_trip()`. Only `score_trip()` receives the reference route.
-- **Robustness.** All 10 student-test trips completed with 0 failures (`results/hmm/integration_failures.csv` is empty).
-- **Latency.** Per-trip timings are in `results/hmm/classifier_vs_hmm.csv` (`inference_ms`, `candidate_generation_ms`, `model_ms`, `hmm_ms`).
-  - Mean end-to-end time is 5.27 s per trip. It ranges from 0.68 s (00000052, 262 fixes) to 11.2 s (00000056, 3,958 fixes).
-  - Viterbi decoding is most of the cost, about 65% of the time on the slowest trips (`hmm_ms`). Candidate generation (about 0.04–0.22 s) and the model (about 0.01–0.16 s) are small.
+- **Robustness.** All 10 student-test trips completed with 0 failures (`results/hmm/xgboost/integration_failures.csv` is empty).
+- **Latency.** Per-trip timings are in `results/hmm/xgboost/classifier_vs_hmm.csv` (`inference_ms`, `candidate_generation_ms`, `model_ms`, `hmm_ms`).
+  - Mean end-to-end time is 3.4 s per trip. It ranges from 0.54 s (00000052, 262 fixes) to 6.9 s (00000056, 3,958 fixes).
+  - Viterbi decoding is most of the cost, 61–78% of each trip's time (`hmm_ms`). Candidate generation (about 0.04–0.21 s) and the XGBoost model (about 0.01–0.13 s) are small.
   - Long trips therefore exceed the "few seconds" demo target. Caching Dijkstra rows across segments, or tightening the search limit, are the first things to try.
   - Latency depends on the machine.
-
-> Reproducibility note: `results/hmm/integration_summary.json` reports a mean of 1.87 s and a maximum of 3.80 s. These do not match the per-trip `inference_ms` column in `classifier_vs_hmm.csv` from the same commit. The accuracy metrics in the two files agree. The report uses the per-trip CSV. Re-run `python scripts/run_julia_hmm.py --skip-tune` on the demo laptop and quote whichever file that run produces.
+- **Reproducing.** `python -m src.evaluate_hmm` (or `notebooks/julia_hmm_viterbi_colab.ipynb`) regenerates every number in §5.6 and in this section; `integration_summary.json` is computed from the CSV of the same run.
