@@ -25,7 +25,8 @@ PARTITION_LABEL = {"train": "Train", "student_test": "Student test"}
 # Map / trajectory layers
 GPS_COLOR = BLUE
 ROUTE_COLOR = AQUA
-PRED_COLOR = ORANGE
+PRED_COLOR = ORANGE          # classifier-only prediction
+HMM_COLOR = "#6250d6"        # HMM/Viterbi prediction (violet; told apart by line style and legend, not hue alone)
 NETWORK_COLOR = "#a8a69f"
 
 
