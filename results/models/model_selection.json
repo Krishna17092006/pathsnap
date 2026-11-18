@@ -1,0 +1,19 @@
+{
+  "selected_model": "xgboost",
+  "selected_primary_score": 0.8440962848213264,
+  "selected_cv_macro_f1": 0.9155522762021274,
+  "selected_cv_log_loss": 0.0768171714625422,
+  "selected_inference_ms_per_1000_fixes": 31.154780793833712,
+  "primary_metric": "cv_top1",
+  "selection_policy": [
+    "GroupKFold mean Top-1 accuracy (or macro F1 when Top-1 is unavailable)",
+    "GroupKFold macro F1 / Top-1 as the secondary criterion",
+    "lower GroupKFold log loss",
+    "lower inference milliseconds per 1,000 fixes"
+  ],
+  "comparison_rows": 8,
+  "missing_metrics": [],
+  "missing_required_tree_models": [],
+  "selection_status": "ready_for_team_review",
+  "student_test_metrics_are_not_used_to_rank": true
+}

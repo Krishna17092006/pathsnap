@@ -28,9 +28,12 @@ The nearest-arc baseline is not a model; train.py handles the name "baseline".
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Any, Callable
 
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
@@ -78,6 +81,62 @@ def make_knn(n_neighbors: int = 50, weights: str = "uniform", algorithm: str = "
     ])
 
 
+# ------------------------------------------------------------------ Joshua: models 4-5
+N_JOBS = max(1, min(8, os.cpu_count() or 1))
+
+RF_DEFAULTS: dict[str, Any] = {
+    "n_estimators": 300,
+    "max_depth": 22,
+    "min_samples_split": 4,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "bootstrap": True,
+    "max_samples": 0.8,
+    "class_weight": None,
+    "n_jobs": N_JOBS,
+    "random_state": SEED,
+}
+
+XGB_DEFAULTS: dict[str, Any] = {
+    "n_estimators": 350,
+    "learning_rate": 0.06,
+    "max_depth": 6,
+    "min_child_weight": 3.0,
+    "subsample": 0.85,
+    "colsample_bytree": 0.85,
+    "reg_lambda": 2.0,
+    "scale_pos_weight": 1.0,
+    "objective": "binary:logistic",
+    "eval_metric": "logloss",
+    "tree_method": "hist",
+    "n_jobs": N_JOBS,
+    "random_state": SEED,
+    "verbosity": 0,
+}
+
+
+def _tree_pipeline(estimator) -> Pipeline:
+    # The imputer is fitted within each CV training fold, so no median comes from a validation fold.
+    return Pipeline([
+        ("imputer", SimpleImputer(strategy="median", keep_empty_features=True)),
+        ("classifier", estimator),
+    ])
+
+
+def make_random_forest(**overrides: Any) -> Pipeline:
+    """Model 4. Random Forest (bagging ensemble) with probability output."""
+    return _tree_pipeline(RandomForestClassifier(**{**RF_DEFAULTS, **overrides}))
+
+
+def make_xgboost(**overrides: Any) -> Pipeline:
+    """Model 5. XGBoost gradient-boosted trees with binary probability output."""
+    try:
+        from xgboost import XGBClassifier
+    except ImportError as exc:  # pragma: no cover - environment dependent
+        raise ImportError("Install XGBoost with `pip install xgboost` (macOS also needs `brew install libomp`).") from exc
+    return _tree_pipeline(XGBClassifier(**{**XGB_DEFAULTS, **overrides}))
+
+
 REGISTRY: dict[str, ModelSpec] = {
     "logreg": ModelSpec("Linear / probabilistic", make_logreg, {
         "params": {"C": 1.0, "class_weight": None},
@@ -99,7 +158,15 @@ REGISTRY: dict[str, ModelSpec] = {
         "params": {"var_smoothing": 1e-9, "corr_threshold": 0.8},
         "description": "QuantileTransformer(normal) + correlation filter |r|>0.8 (fitted per fold) + GaussianNB",
     }),
-    # Joshua: Random Forest, XGBoost | Julia: MLP  -> add entries here
+    "random_forest": ModelSpec("Bagging ensemble", make_random_forest, {
+        "params": RF_DEFAULTS.copy(),
+        "description": "RandomForest, 300 trees, max_depth=22, min_samples_leaf=2, max_features=sqrt, max_samples=0.8",
+    }),
+    "xgboost": ModelSpec("Boosting ensemble", make_xgboost, {
+        "params": XGB_DEFAULTS.copy(),
+        "description": "XGBoost hist, 350 trees, lr=0.06, max_depth=6, subsample/colsample 0.85, reg_lambda=2",
+    }),
+    # Julia: MLP -> add an entry here
 }
 
 
@@ -108,3 +175,43 @@ def get_spec(name: str) -> ModelSpec:
         known = ", ".join(sorted(REGISTRY)) or "(none yet)"
         raise KeyError(f"unknown model '{name}'. Registered: {known}")
     return REGISTRY[name]
+
+
+# ------------------------------------------------------------------ tuple view used by src/tune.py
+# name -> (family, factory, default params). Kept in sync with REGISTRY.
+MODEL_ZOO: dict[str, tuple[str, Callable[..., Any], dict[str, Any]]] = {
+    name: (spec.family, spec.factory, spec.params) for name, spec in REGISTRY.items()
+}
+MODELS = MODEL_ZOO
+MODEL_ALIASES = {"rf": "random_forest", "randomforest": "random_forest", "xgb": "xgboost"}
+
+
+def canonical_model_name(name: str) -> str:
+    key = str(name).strip().lower().replace("-", "_").replace(" ", "_")
+    canonical = MODEL_ALIASES.get(key, key)
+    if canonical not in MODEL_ZOO:
+        raise KeyError(f"Unknown model {name!r}. Registered models: {', '.join(sorted(MODEL_ZOO))}")
+    return canonical
+
+
+def build_model(name: str, params: dict[str, Any] | None = None):
+    """Construct a fresh estimator with the shared factory(**params) contract."""
+    _, factory, _ = MODEL_ZOO[canonical_model_name(name)]
+    return factory(**(params or {}))
+
+
+def register_model(name: str, family: str, factory: Callable[..., Any], config: dict[str, Any]) -> None:
+    """Register a model at runtime without overwriting an existing entry."""
+    key = str(name).strip().lower().replace("-", "_").replace(" ", "_")
+    if not key:
+        raise ValueError("Model name must not be empty")
+    if key in REGISTRY:
+        raise ValueError(f"Model {key!r} is already registered")
+    if not callable(factory):
+        raise TypeError("factory must be callable")
+    REGISTRY[key] = ModelSpec(str(family), factory, {"params": dict(config)})
+    MODEL_ZOO[key] = (str(family), factory, dict(config))
+
+
+def list_models() -> list[str]:
+    return sorted(REGISTRY)
