@@ -27,8 +27,13 @@ pathsnap/
 │   ├── network.py         # road-network geometry, spatial index, connectivity, route helpers
 │   ├── plot_style.py      # shared matplotlib style
 │   ├── maps.py            # Folium map builders
-│   └── eda.py             # exploratory data analysis
+│   ├── eda.py             # exploratory data analysis
+│   ├── config.py          # shared constants (seed, folds, candidate radius, label threshold)
+│   ├── labels.py          # per-fix labels by order-constrained matching to the reference route
+│   ├── candidates.py      # candidate arcs per fix + candidate/fix tables
+│   └── build_dataset.py   # builds data/processed/*.parquet and the radius analysis
 ├── results/eda/           # EDA tables (CSV), figures (PNG), summary
+├── results/candidates/    # label coverage, candidate miss rate vs radius, data decisions
 └── maps/eda/              # interactive Folium maps (HTML)
 ```
 
@@ -79,6 +84,20 @@ Outputs:
 - `results/eda/figures/*.png`: report figures
 - `results/eda/eda_summary.md`: summary of the measured numbers
 - `maps/eda/*.html`: interactive Folium maps (open in a browser)
+
+### Labels and candidate table
+
+```bash
+python -m src.build_dataset            # about 1 minute; all train + student_test trips
+python -m src.build_dataset --quick    # 3 trips per partition (smoke test)
+```
+
+Outputs:
+- `data/processed/candidates_<partition>.parquet`: one row per (GPS fix, candidate arc within 50 m), with labels. Not committed.
+- `data/processed/fixes_<partition>.parquet`: one row per GPS fix (matched route arc, label validity, candidate coverage). Not committed.
+- `results/candidates/`: miss rate vs radius, per-trip label statistics, figures, and `dataset_summary.md` (data decisions)
+
+The column definitions are in `TEAM.md` section 2.2.
 
 ## Data-partition rules
 

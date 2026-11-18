@@ -93,29 +93,54 @@ from src import plot_style as ps               # ps.apply_style(), ps.save(fig, 
 - **Train trips 00000054 and 00000033:** the reference route covers only part of the drive (GPS path 5–7× longer). Most of their fixes are more than 100 m from the route and must not get labels.
 - 11 train trips have gaps longer than 300 s (max 153,064 s in 00000090).
 - Median candidate arcs per fix: 4 within 25 m, 8 within 50 m, ~20 within 100 m.
-- Naive "nearest arc" is correct for ~89% of fixes (median per trip). **This is the baseline to beat.**
+- The nearest arc lies on the reference route for ~89% of fixes. But **strict nearest-candidate Top-1 is only ~54%**, because a two-way road gives two equally near arcs (one per direction). **This is the baseline to beat, and direction (heading) is the key feature.** GPS heading is only reliable when the vehicle moves faster than ~8 m/s; below ~2.5 m/s it is jitter.
+- Train trips **00000002** and **00000033** have noisy labels: more than 5% of fast fixes move against their labelled arc. They are kept in the tables; test in CV whether excluding them from training helps.
 - Reference routes have occasional breaks, U-turns and revisited arcs. Networks have duplicate arcs, self-loops and zero-length arcs, so code must not crash on them.
 
 ---
 
 ## 2. Shared interfaces (agree on these; do not change without telling the team)
 
-### 2.1 Shared constants: `src/config.py` (created by KKR)
+### 2.1 Shared constants: `src/config.py` (done)
 
 ```python
+from src.config import SEED, N_FOLDS, CANDIDATE_RADIUS_M, LABEL_MAX_DIST_M, PROCESSED_DIR, ARTIFACTS_DIR, RESULTS_DIR
 SEED = 42
 N_FOLDS = 5                     # GroupKFold by trip on the 80 train trips
-CANDIDATE_RADIUS_M = 50.0       # candidate search radius (final value chosen from miss-rate analysis)
-LABEL_MAX_DIST_M = 50.0         # fixes farther than this from their matched route arc get no label
-PROCESSED_DIR = "data/processed"
-ARTIFACTS_DIR = "artifacts"
+CANDIDATE_RADIUS_M = 50.0       # chosen from the miss-rate analysis (results/candidates/)
+LABEL_MAX_DIST_M = 100.0        # fixes farther than this from their matched route arc get no label
+LABEL_COST_CAP_M = 100.0        # distance cap inside the route-matching cost
 ```
 
-### 2.2 Candidate table (produced by KKR, used by everyone)
+`LABEL_MAX_DIST_M` is deliberately larger than `CANDIDATE_RADIUS_M`. If they were equal, the candidate miss rate would be 0% by definition.
 
-Built by `python -m src.build_dataset`. It writes `data/processed/candidates_train.parquet` and `data/processed/candidates_student_test.parquet`. These are not in git; everyone regenerates them with the script.
+### 2.2 Candidate and fix tables (done: produced by KKR, used by everyone)
 
-One row per (GPS fix, candidate arc):
+Run `python -m src.build_dataset` (about 1 minute). It writes four files to `data/processed/`. They are not in git; everyone regenerates them.
+
+| File | Rows | Size |
+|---|---|---|
+| `candidates_train.parquet` | 1,869,589 | 30 MB |
+| `candidates_student_test.parquet` | 209,579 | 3 MB |
+| `fixes_train.parquet` | 208,417 | 7 MB |
+| `fixes_student_test.parquet` | 19,160 | 1 MB |
+
+```python
+import pandas as pd
+cand = pd.read_parquet("data/processed/candidates_train.parquet")
+fixes = pd.read_parquet("data/processed/fixes_train.parquet")
+```
+
+Numbers at the chosen 50 m radius (full details in `results/candidates/dataset_summary.md`):
+
+| | Train | Student test |
+|---|---|---|
+| Labelled fixes | 90.1% | 99.9% |
+| Candidate miss rate | 1.38% | 0.05% |
+| Mean candidates per fix | 9.0 | 10.9 |
+| Nearest-candidate Top-1 (baseline) | 54.6% | 53.8% |
+
+**Candidate table:** one row per (GPS fix, candidate arc):
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -131,9 +156,23 @@ One row per (GPS fix, candidate arc):
 | `n_cand` | int | number of candidates for this fix |
 | `true_arc` | int | reference arc for the fix (-1 if no reliable label) |
 | `fix_valid` | bool | True if the fix has a reliable label (used for training and metrics) |
-| `label` | int | 1 if `arc_id == true_arc` else 0 |
+| `label` | int | 1 if the candidate is `true_arc` **or an exact duplicate of it** (same `u`, `v`), else 0 |
 
-Rules: rows with `fix_valid == False` are **excluded from training and metrics** but kept for HMM inference. A valid fix whose `true_arc` is not among its candidates is a **candidate miss**.
+**Fix table:** one row per GPS fix, including fixes that have no candidates (these have no rows in the candidate table):
+
+| Column | Type | Meaning |
+|---|---|---|
+| `trip_id`, `partition`, `fix_idx`, `t`, `lon`, `lat` | | as above |
+| `route_pos` | int | matched position (index) along the reference route; never decreases within a trip |
+| `true_arc` | int | matched route arc (-1 if not reliably labelled) |
+| `match_dist_m` | float | distance from the fix to its matched route arc |
+| `fix_valid` | bool | True if `match_dist_m <= LABEL_MAX_DIST_M` |
+| `n_cand` | int | candidates within the radius (0 = none) |
+| `true_in_cands` | bool | the true arc (or a duplicate) is among the candidates |
+
+Rules:
+- Rows with `fix_valid == False` are **excluded from training and metrics** but kept for HMM inference.
+- A valid fix with `true_in_cands == False` is a **candidate miss**. For Top-1 it counts as wrong, so **compute Top-1 over the fix table, not only over fixes that appear in the candidate table.**
 
 ### 2.3 Features (produced by Krishna Jha)
 
@@ -203,18 +242,19 @@ Branch: `kkr/data` (and later `kkr/ui`)
 
 - [x] Extract data, loaders (`data_io.py`), geometry (`geo.py`), road network (`network.py`), map helpers (`maps.py`)
 - [x] EDA script, figures, maps, data-quality log (`eda.py`)
-- [ ] Re-run EDA with latest changes and commit outputs; write a short "data decisions" note (which fixes are dropped and why)
-- [ ] Create `src/config.py` (section 2.1)
-- [ ] **`src/labels.py`: per-fix labels by order-constrained matching to the reference route.** Nearest-arc labelling is wrong where the route revisits or doubles back, so use dynamic programming over route positions:
+- [x] Re-run EDA with latest changes and commit outputs
+- [x] Data-decisions note: `results/candidates/dataset_summary.md` (which fixes are dropped and why, radius choice, duplicate-arc rule, low-quality trips)
+- [x] Create `src/config.py` (section 2.1)
+- [x] **`src/labels.py`: per-fix labels by order-constrained matching to the reference route.** Validated: at driving speed the labelled arc points the vehicle's way for 99.5% of fixes (median trip). Nearest-arc labelling is wrong where the route revisits or doubles back, so use dynamic programming over route positions:
   - `d[i, j]` = distance from fix `i` to route arc `route[j]`
   - `cost[i, j] = d[i, j] + min(cost[i-1, j'] for j' <= j)` (position along the route never decreases)
   - Backtrack to get `route_pos[i]`, then `true_arc[i] = route[route_pos[i]]`
   - Set `fix_valid = d[i, route_pos[i]] <= LABEL_MAX_DIST_M`. This automatically drops the unmatched parts of trips 00000054 and 00000033.
   - Vectorise row by row with `np.minimum.accumulate`. The largest trip is 19k fixes × 2.3k route arcs, which fits in memory if processed in chunks.
-- [ ] **`src/candidates.py`:** `build_candidates(trip, net, radius)` using `net.arcs_within`. Add `cand_rank` and `n_cand`, join labels, and return the section 2.2 schema.
-- [ ] **Candidate miss-rate analysis** for R = 25 / 50 / 75 / 100 m on train and student_test. Pick R and justify it (miss rate vs table size). Save `results/candidates/miss_rate.csv` and a plot.
-- [ ] **`src/build_dataset.py`:** writes both parquet files. Add `pyarrow` to requirements.
-- [ ] **Hand off to the team ASAP.** Everyone depends on the candidate table.
+- [x] **`src/candidates.py`:** `candidate_pairs(net, px, py, radius, labels)` and `build_tables(...)` using `net.arcs_within`. Adds `cand_rank` and `n_cand`, joins labels, and returns the section 2.2 schema.
+- [x] **Candidate miss-rate analysis** for R = 25 / 50 / 75 / 100 m: `results/candidates/miss_rate.csv` and figures. R = 50 m chosen (1.38% / 0.05% miss vs 3.71% / 1.38% at 25 m, with 9–11 candidates per fix).
+- [x] **`src/build_dataset.py`:** writes the candidate and fix parquet files for both partitions.
+- [x] **Hand off to the team.** Run `python -m src.build_dataset`.
 - [ ] **Result maps:** extend `src/maps.py` with `result_map(trip, net, pred)` showing GPS, nearby network, reference route, classifier-only prediction and HMM prediction, with layer control and a legend. Generate maps for all 10 student-test trips → `maps/results/`.
 - [ ] **Streamlit UI** (`ui/app.py`, Laptop 2):
   - API URL from a sidebar text box (default from env `PATHSNAP_API_URL`, e.g. `http://<laptop1-ip>:8000`)
