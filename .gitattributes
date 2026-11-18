@@ -2,3 +2,5 @@
 data/train/** -text
 data/student_test/** -text
 *.pdf binary
+results/models/random_forest/model.joblib filter=lfs diff=lfs merge=lfs -text
+results/models/xgboost/model.joblib filter=lfs diff=lfs merge=lfs -text

@@ -55,4 +55,4 @@ Figures:
 - `results/candidates/figures/fig_miss_rate_vs_radius.png`
 - `results/candidates/figures/fig_label_coverage.png`
 
-Runtime: 42 s.
+Runtime: 77 s.
