@@ -36,8 +36,12 @@ pathsnap/
 │   ├── evaluate.py        # GroupKFold CV, candidate- and fix-level metrics
 │   ├── model_zoo.py       # model registry (name -> family, factory, config)
 │   ├── train.py           # CV + student_test evaluation, writes results/models/
-│   └── compare.py         # model-comparison figures from the saved CSVs
+│   ├── compare.py         # model-comparison figures from the saved CSVs
+│   ├── naive_bayes.py     # model 3 (KKR): Gaussian Naive Bayes, three-configuration study
+│   └── label_noise_experiment.py  # data decision: train with / without the noisy-label trips
 ├── tests/                 # pytest suite on synthetic trips
+├── notebooks/             # naive_bayes.ipynb (+ .html): Naive Bayes walkthrough with all metrics
+├── ui/                    # Streamlit evaluator UI (app.py) and a mock API for development (mock_api.py)
 ├── results/eda/           # EDA tables (CSV), figures (PNG), summary
 ├── results/candidates/    # label coverage, candidate miss rate vs radius, data decisions
 ├── results/models/        # per-model CV/student_test results, model_comparison.csv, figures
@@ -109,6 +113,14 @@ Outputs:
 
 The column definitions are in `TEAM.md` section 2.2.
 
+**Noisy-label trips.** Train trips 00000002 and 00000033 are flagged as noisy in `dataset_summary.md`. To decide whether to drop them from training, run:
+
+```bash
+python -m src.label_noise_experiment
+```
+
+It trains `gaussian_nb` and `logreg` with and without those trips on the same CV folds, then writes `results/candidates/label_noise_experiment.md`.
+
 ### Evaluator UI (Laptop 2)
 
 ```bash
@@ -161,6 +173,25 @@ Each run does GroupKFold CV by trip on the 80 train trips, refits on all of them
 - `results/models/<name>/student_test_metrics.json`
 - `results/models/model_comparison.csv`: one row per model (re-running a model replaces its row)
 - `results/models/figures/*.png`: CV macro F1, student_test Top-1 / macro F1, log loss, inference time, train vs CV
+
+### Naive Bayes (model 3)
+
+```bash
+python -m src.naive_bayes            # three configurations: CV + student_test, about 2 minutes
+python -m src.train --model gaussian_nb
+```
+
+`src/naive_bayes.py` compares three Gaussian Naive Bayes configurations that test the model's two assumptions:
+
+| Config | What it does |
+|---|---|
+| `gnb_all` | raw features |
+| `gnb_quantile` | quantile-normal transform (Gaussian assumption) |
+| `gnb_decorrelated` | quantile transform + a correlation filter dropping \|r\| > 0.8, fitted inside each training fold (independence assumption) |
+
+- The configuration with the highest mean CV Top-1 is registered in `src/model_zoo.py` as `gaussian_nb`.
+- Results go to `results/models/naive_bayes/`: summary, per-fold metrics, student_test metrics, figures.
+- `notebooks/naive_bayes.ipynb` walks through the selected model with all metrics. It's saved with outputs, and `naive_bayes.html` is a static copy. To re-run it, open it with `jupyter notebook notebooks/naive_bayes.ipynb` after `python -m src.features`.
 
 ### Tests
 
