@@ -232,6 +232,16 @@ metrics = score_trip(pred, trip)    # server-side only: uses trip.route
 
 **The response must never contain the reference route or per-fix true labels.** Only aggregate metrics leave the server. Every request is logged to the console (trip id, n_fixes, metrics, timing), and the evaluator will look at this log.
 
+How the UI (`ui/app.py`) uses this contract:
+- `predicted_route` may be one polyline `[[lat, lon], ...]` or a list of polylines `[[[lat, lon], ...], ...]`. Use the second form if the route has breaks.
+- `metrics` values may be `null`; the UI shows "—". Any extra metric keys are listed automatically in the scores table.
+- An error response should use HTTP 4xx/5xx with `{"detail": "..."}` (FastAPI's default); the UI shows the detail.
+- `ui/mock_api.py` implements this contract with dummy content, on port 8765, for UI development. The real API replaces it.
+
+Deployment notes:
+- **Port 8000 is taken by Docker on KKR's laptop.** If that laptop is Laptop 1, run the API on another port (e.g. `--port 8080`); the UI accepts any URL.
+- For tests on one machine, use `http://127.0.0.1:<port>`, not `localhost`: on Windows, `localhost` tries IPv6 first and adds about 2 s per request.
+
 ---
 
 ## 3. Todo lists
@@ -256,13 +266,12 @@ Branch: `kkr/data` (and later `kkr/ui`)
 - [x] **`src/build_dataset.py`:** writes the candidate and fix parquet files for both partitions.
 - [x] **Hand off to the team.** Run `python -m src.build_dataset`.
 - [ ] **Result maps:** extend `src/maps.py` with `result_map(trip, net, pred)` showing GPS, nearby network, reference route, classifier-only prediction and HMM prediction, with layer control and a legend. Generate maps for all 10 student-test trips → `maps/results/`.
-- [ ] **Streamlit UI** (`ui/app.py`, Laptop 2):
-  - API URL from a sidebar text box (default from env `PATHSNAP_API_URL`, e.g. `http://<laptop1-ip>:8000`)
-  - `GET /trips` fills a selectbox; a "Run" button calls `POST /predict/{trip_id}`
-  - Show metrics with `st.metric`, timing, and a Folium map (GPS + predicted route) via `streamlit-folium`
-  - Show a clear error if the API is unreachable
-  - **Never** load data files or ground truth in the UI. Everything comes from the API.
-  - Build it against a mocked JSON response first (section 2.7), then switch to the real API.
+- [x] **Streamlit UI** (`ui/app.py`, Laptop 2), built and tested against `ui/mock_api.py`:
+  - API URL in the sidebar (default from env `PATHSNAP_API_URL`), with a connection check and clear errors (unreachable, wrong port, HTTP errors)
+  - `GET /trips` shows all trips as selectable buttons; "Run map matching" calls `POST /predict/{trip_id}`
+  - Headline scores (Top-1 HMM vs classifier, route continuity, response time), a Folium map (GPS + predicted route; `src/maps.py: prediction_map`), a scores table, server timing, and a log of every run in the session
+  - Never loads data files or ground truth; everything comes from the API
+- [ ] Switch the UI to the real API once Joshua's `api/main.py` serves `predict_trip`, and rehearse on two laptops
 - [ ] **Model 3: Gaussian Naive Bayes** (probabilistic). Add it to `src/model_zoo.py` and run it with `src/train.py`. Note the independence assumption vs correlated features (`dist_m`, `dist_minus_min`, `dist_ratio` and `cand_rank` all describe distance) and its effect on log loss.
 - [ ] Report: **§2 EDA**, **§3.2 subsection for Naive Bayes**, **§6 Folium maps**, UI screenshots in **§7**, and final assembly of the PDF.
 
