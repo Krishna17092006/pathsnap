@@ -1,0 +1,43 @@
+{
+  "model": "random_forest",
+  "family": "bagging ensemble",
+  "params": {
+    "n_estimators": 300,
+    "max_depth": 22,
+    "min_samples_split": 4,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "bootstrap": true,
+    "max_samples": 0.8,
+    "class_weight": null,
+    "n_jobs": 8,
+    "random_state": 42
+  },
+  "seed": 42,
+  "n_folds": 5,
+  "feature_columns": [
+    "dist_m",
+    "dist_minus_min",
+    "dist_ratio",
+    "cand_rank",
+    "n_cand",
+    "heading_diff_deg",
+    "cos_heading_diff",
+    "has_heading",
+    "cos_heading_weighted",
+    "speed_mps",
+    "log_dt_prev",
+    "log_dt_next",
+    "log_arc_length",
+    "t_along",
+    "is_two_way",
+    "out_degree_v",
+    "in_degree_u",
+    "prev_nearest_link",
+    "next_nearest_link"
+  ],
+  "train_candidate_rows": 1848746,
+  "max_train_rows_per_fold_and_final_fit": null,
+  "train_trips": 80,
+  "student_test_trips": 10
+}
