@@ -1,0 +1,21 @@
+{
+  "model": "baseline",
+  "family": "Rule (no training)",
+  "description": "nearest candidate arc (cand_rank == 0)",
+  "config": {},
+  "features": [],
+  "seed": 42,
+  "n_folds": 5,
+  "quick": false,
+  "train_trips": 80,
+  "student_test_trips": 10,
+  "train_rows_labelled": 1848746,
+  "cv_seconds": 1.0710430145263672,
+  "created_utc": "2026-11-18T06:22:23+00:00",
+  "versions": {
+    "python": "3.12.15",
+    "sklearn": "1.7.2",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3"
+  }
+}
