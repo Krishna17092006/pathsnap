@@ -85,9 +85,38 @@ def _model_probabilities(feature_frame: pd.DataFrame, art: dict) -> np.ndarray |
             # Preserve fitted feature names when the scaler was trained on a DataFrame.
             values = scaler.transform(X if hasattr(scaler, "feature_names_in_") else values)
         return np.asarray(model.predict_proba(values)[:, 1], dtype="float64")
-    # sklearn Pipeline or estimator that performs its own preprocessing.
-    X = X.fillna(0.0).to_numpy(dtype="float64")
-    return np.asarray(bundle.predict_proba(X)[:, 1], dtype="float64")
+    # sklearn Pipeline or estimator that performs its own preprocessing
+    # (logreg, knn, gaussian_nb, random_forest, xgboost from src.model_zoo / src.export).
+    return np.asarray(bundle.predict_proba(model_input(bundle, X))[:, 1], dtype="float64")
+
+
+def _handles_missing(model) -> bool:
+    """True when the model imputes NaN itself (e.g. the tree pipelines' SimpleImputer)."""
+    steps = getattr(model, "steps", None)
+    first = steps[0][1] if steps else model
+    return hasattr(first, "missing_values") or type(first).__name__.startswith(("XGB", "HistGradient"))
+
+
+def model_input(model, X: pd.DataFrame):
+    """Shape candidate features the way `model` was fitted.
+
+    - Fitted on a DataFrame (e.g. the Optuna-tuned model from src.tune): pass a
+      DataFrame in the fitted column order, so columns are matched by name.
+    - Fitted on a NumPy array (src.train / src.export): pass a float array.
+    - Missing values: left as NaN when the model has its own imputer, so it applies
+      the training medians; otherwise filled with 0.0 so models without an imputer
+      (logistic regression, KNN, Naive Bayes) do not fail.
+    """
+    X = X.replace([np.inf, -np.inf], np.nan)
+    if not _handles_missing(model):
+        X = X.fillna(0.0)
+    names = getattr(model, "feature_names_in_", None)
+    if names is not None:
+        missing = [c for c in names if c not in X.columns]
+        if missing:
+            raise ValueError(f"model expects feature columns that are missing: {missing}")
+        return X.loc[:, list(names)].astype("float64")
+    return X.to_numpy(dtype="float64")
 
 
 def _build_inference_candidates(trip: Trip, radius_m: float):

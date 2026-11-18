@@ -75,7 +75,8 @@ class Artifacts:
         missing = [c for c in self.features if c not in frame.columns]
         if missing:
             raise ValueError(f"missing feature columns: {missing}")
-        return self.model.predict_proba(frame[self.features].to_numpy(dtype="float64"))[:, 1]
+        from .pipeline import model_input   # local import: pipeline is the inference module
+        return self.model.predict_proba(model_input(self.model, frame[self.features]))[:, 1]
 
 
 # ------------------------------------------------------------------------------ helpers
