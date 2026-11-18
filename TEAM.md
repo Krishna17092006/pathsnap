@@ -417,7 +417,7 @@ Julia: HMM (distance-only emissions first) ────────────�
   ```
 
   Work on your own branch, open a pull request into `main`, and get one teammate to review it. Do not commit `data/`, large intermediate files or secrets.
-- **Setup:** clone the repo, then `pip install -r requirements.txt`, then unzip `Student folder.zip` into `data/` (see README), then run `python -m src.eda --quick` to check that it works.
+- **Setup:** clone the repo (the dataset is already in `data/train` and `data/student_test`, and the official PDFs are in `docs/guidelines/`), then `pip install -r requirements.txt`, then run `python -m src.eda --quick` to check that it works.
 - **Reproducibility:** fixed seeds (`SEED = 42`). Every experiment writes its config and results to `results/`. Plots are generated from saved CSVs, never by hand.
 - **Leakage:**
   - Evaluator data never used for anything but the final API run

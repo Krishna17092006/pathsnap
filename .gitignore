@@ -1,5 +1,7 @@
-# Raw dataset (course-provided; see README for where to place it)
-data/
+# Generated tables (rebuild with: python -m src.build_dataset)
+data/processed/
+# Evaluator trips are never committed
+data/eval/
 
 # Python
 __pycache__/
