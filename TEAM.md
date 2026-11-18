@@ -4,10 +4,24 @@ This file is the single source of truth for **who does what, and how the pieces 
 
 | Member | Name | Owns |
 |---|---|---|
-| **Member 1** | **KKR** | Data, EDA, labels, candidate generation, result maps, Streamlit UI |
-| **Member 2** | **Krishna Jha** | Feature engineering, evaluation framework, models 1–3, model comparison |
-| **Member 3** | **Joshua** | Models 4–6, Bayesian optimisation, artifact export, FastAPI backend |
-| **Member 4** | **Julia** | HMM + Viterbi, route metrics, end-to-end `predict_trip()` pipeline, integration |
+| **Member 1** | **KKR** | Data, EDA, labels, candidate generation, result maps, Streamlit UI, Gaussian Naive Bayes |
+| **Member 2** | **Krishna Jha** | Feature engineering, evaluation framework, Logistic Regression, KNN, model comparison |
+| **Member 3** | **Joshua** | Random Forest, XGBoost, Bayesian optimisation, artifact export, FastAPI backend |
+| **Member 4** | **Julia** | HMM + Viterbi, route metrics, end-to-end `predict_trip()` pipeline, integration, MLP |
+
+### Model ownership
+
+All 6 models are compared together in **one** table (`results/models/model_comparison.csv`) using the same features, the same GroupKFold and the same metrics. The split below is only about who builds each model. The two members with one model (KKR, Julia) carry the heaviest pipeline stages.
+
+| # | Model | Family | Owner |
+|---|---|---|---|
+| 0 | Nearest-arc baseline | Rule (no training, reference row) | Krishna Jha |
+| 1 | Logistic Regression | Linear / probabilistic | Krishna Jha |
+| 2 | KNN | Instance-based | Krishna Jha |
+| 3 | Gaussian Naive Bayes | Probabilistic | KKR |
+| 4 | Random Forest | Bagging ensemble | Joshua |
+| 5 | XGBoost | Boosting | Joshua |
+| 6 | MLP | Neural network | Julia |
 
 Each member owns one stage of the pipeline end to end: code, experiments, and the matching report sections. **In the viva anyone can be asked about any part**, so every member must also understand the others' work (see "Knowledge sharing").
 
@@ -125,10 +139,10 @@ Rules: rows with `fix_valid == False` are **excluded from training and metrics**
 
 `src/features.py` → `add_features(cand_df, trip, net) -> DataFrame`. It adds feature columns and keeps all candidate-table columns. The list of model-input columns is saved in `artifacts/features.json`. **Features may use only the GPS track and the road network, never `.route`, `true_arc` or `label`.**
 
-### 2.4 Models (Krishna Jha and Joshua)
+### 2.4 Models (all members; see "Model ownership")
 
 - Every model is an sklearn-compatible estimator (or Pipeline) with `fit(X, y)` and `predict_proba(X)[:, 1]` = P(candidate is the true arc).
-- Models are registered in `src/model_zoo.py` as `name -> (family, factory_function, config_dict)`. Krishna Jha and Joshua each add their own entries.
+- Models are registered in `src/model_zoo.py` as `name -> (family, factory_function, config_dict)`. Each member adds the entries for their own models.
 - `python -m src.train --model <name>` runs group CV on train plus evaluation on student_test and writes:
   - `results/models/<name>/config.json`
   - `results/models/<name>/cv_folds.csv` (per-fold metrics)
@@ -183,7 +197,7 @@ metrics = score_trip(pred, trip)    # server-side only: uses trip.route
 
 ## 3. Todo lists
 
-### Member 1: KKR (data, labels, candidates, maps, UI)
+### Member 1: KKR (data, labels, candidates, maps, UI, Naive Bayes)
 
 Branch: `kkr/data` (and later `kkr/ui`)
 
@@ -209,11 +223,12 @@ Branch: `kkr/data` (and later `kkr/ui`)
   - Show a clear error if the API is unreachable
   - **Never** load data files or ground truth in the UI. Everything comes from the API.
   - Build it against a mocked JSON response first (section 2.7), then switch to the real API.
-- [ ] Report: **§2 EDA**, **§6 Folium maps**, UI screenshots in **§7**, and final assembly of the PDF.
+- [ ] **Model 3: Gaussian Naive Bayes** (probabilistic). Add it to `src/model_zoo.py` and run it with `src/train.py`. Note the independence assumption vs correlated features (`dist_m`, `dist_minus_min`, `dist_ratio` and `cand_rank` all describe distance) and its effect on log loss.
+- [ ] Report: **§2 EDA**, **§3.2 subsection for Naive Bayes**, **§6 Folium maps**, UI screenshots in **§7**, and final assembly of the PDF.
 
 **Done when:** `python -m src.build_dataset` produces both parquet files with the exact schema, the miss rate is reported, and the UI works against the real API on two laptops.
 
-### Member 2: Krishna Jha (features, evaluation framework, models 1–3)
+### Member 2: Krishna Jha (features, evaluation framework, Logistic Regression, KNN)
 
 Branch: `krishna-jha/features-models`
 
@@ -232,28 +247,26 @@ Branch: `krishna-jha/features-models`
   - Training time and inference time (per 1,000 fixes).
   - Write the result files listed in section 2.4.
 - [ ] **`src/model_zoo.py` + `src/train.py`** (section 2.4)
-- [ ] **Models 1–3:**
+- [ ] **Models 1–2:**
   1. **Logistic Regression** (linear/probabilistic): standardised features, `class_weight` balanced vs none
-  2. **Gaussian Naive Bayes** (probabilistic): note the independence assumption vs correlated features
-  3. **KNN** (instance-based): scaling matters. Train on a subsample if slow and say so.
+  2. **KNN** (instance-based): scaling matters. Train on a subsample if slow and say so.
 - [ ] Include the **naive nearest-arc baseline** as a reference row (Top-1 only, no training).
-- [ ] **Model comparison:** `results/models/model_comparison.csv` with all models (including Joshua's), and plots in `results/models/figures/`:
+- [ ] **Model comparison:** `results/models/model_comparison.csv` with all 6 models (from every member), and plots in `results/models/figures/`:
   - CV macro F1 per model (with fold spread)
   - Student-test Top-1 and macro F1
   - Log loss
   - Inference time
-- [ ] Report: **§3.1 comparison table**, **§3.2 subsections for models 1–3**, **§3.3 comparison plots**, and the feature-engineering part of §2.
+- [ ] Report: **§3.1 comparison table**, **§3.2 subsections for Logistic Regression and KNN**, **§3.3 comparison plots**, and the feature-engineering part of §2.
 
-**Done when:** `python -m src.train --model logreg` (and the other two) runs end to end and writes all result files, and the comparison plots regenerate from the CSV.
+**Done when:** `python -m src.train --model logreg` (and `knn`) runs end to end and writes all result files, and the comparison plots regenerate from the CSV.
 
-### Member 3: Joshua (models 4–6, Bayesian optimisation, export, API)
+### Member 3: Joshua (Random Forest, XGBoost, Bayesian optimisation, export, API)
 
 Branch: `joshua/models-tuning-api`
 
-- [ ] **Models 4–6** (add to `src/model_zoo.py`, run with Krishna Jha's `src/train.py`):
-  4. **Random Forest** (ensemble)
-  5. **XGBoost** (boosting; already installed). Optionally also HistGradientBoosting.
-  6. **MLP** (neural network): train epoch by epoch (`partial_fit` loop or PyTorch) and record **train and validation log loss per epoch**. This is the only model allowed to have loss curves. Plot them.
+- [ ] **Models 4–5** (add to `src/model_zoo.py`, run with Krishna Jha's `src/train.py`):
+  4. **Random Forest** (bagging ensemble)
+  5. **XGBoost** (boosting; already installed)
 - [ ] **Choose the final model** from the comparison:
   - Primary metric: group-CV macro F1 or Top-1. Decide with Krishna Jha and write why.
   - Also consider probability quality (log loss matters because the HMM uses the probabilities) and inference speed.
@@ -273,11 +286,11 @@ Branch: `joshua/models-tuning-api`
   - Run with `uvicorn api.main:app --host 0.0.0.0 --port 8000`. Allow CORS. Document the Windows firewall step for the port.
   - Start with a stub that returns a fixed fake response so KKR can build the UI. Replace it with the real pipeline as soon as `predict_trip` exists.
 - [ ] README: deployment section (how to run the API on Laptop 1 and the UI on Laptop 2, and where to put the evaluator trips: `data/eval/<trip_id>/...`)
-- [ ] Report: **§3.2 subsections for models 4–6**, **§4 Bayesian optimisation**, API screenshots in **§7**.
+- [ ] Report: **§3.2 subsections for Random Forest and XGBoost**, **§4 Bayesian optimisation**, API screenshots in **§7**.
 
 **Done when:** `artifacts/` loads in a fresh process, `uvicorn` serves all endpoints, and the tuned vs untuned table exists.
 
-### Member 4: Julia (HMM + Viterbi, route metrics, pipeline, integration)
+### Member 4: Julia (HMM + Viterbi, route metrics, pipeline, integration, MLP)
 
 Branch: `julia/hmm-pipeline`
 
@@ -305,7 +318,8 @@ Branch: `julia/hmm-pipeline`
 - [ ] **Classifier-only vs classifier + HMM comparison** on student_test: table + plots in `results/hmm/`. Find and show cases where the HMM **did not** help, with a map from KKR's `result_map`.
 - [ ] **`src/pipeline.py`:** `load_artifacts`, `predict_trip`, `score_trip` (section 2.6). `predict_trip` must work on a trip **without** a `.route` file.
 - [ ] **Integration:** run `predict_trip` on all 10 student-test trips. Check timing (the demo needs a response in a few seconds) and robustness (gaps, no candidates, huge networks).
-- [ ] Report: **§5 HMM and Viterbi** (all six required questions), plus integration notes.
+- [ ] **Model 6: MLP** (neural network). Add it to `src/model_zoo.py` and run it with `src/train.py`. Train epoch by epoch (`partial_fit` loop or PyTorch) and record **train and validation log loss per epoch**. This is the only model allowed to have loss curves. Plot them.
+- [ ] Report: **§3.2 subsection for the MLP** (with loss curves), **§5 HMM and Viterbi** (all six required questions), plus integration notes.
 
 **Done when:** `predict_trip` runs on every student-test trip without touching `.route`, and the classifier-only vs HMM table exists.
 
@@ -314,7 +328,7 @@ Branch: `julia/hmm-pipeline`
 ## 4. Order of work and handoffs
 
 ```
-KKR: labels + candidates ──► Krishna Jha: features + evaluation ──► Krishna Jha & Joshua: models ──► Joshua: tuned model + export
+KKR: labels + candidates ──► Krishna Jha: features + evaluation ──► All members: 6 models ──► Joshua: tuned model + export
                                                                                                           │
 Julia: HMM (distance-only emissions first) ─────────────────────► swap in classifier probabilities ◄─────┘
                                                                                 │
@@ -375,9 +389,9 @@ Each member gives the others a 10-minute walkthrough of their module covering:
 
 | Member | Must be able to explain |
 |---|---|
-| KKR | Dataset structure, why labels need order-constrained matching, how the candidate radius was chosen, how the UI talks to the API |
-| Krishna Jha | Every feature and why it helps, GroupKFold and why random splits leak, macro F1 vs Top-1, log loss |
-| Joshua | Why the final model was chosen, Bayesian optimisation (TPE, search space, objective), the API flow and logging |
-| Julia | HMM states, emissions and transitions, the Viterbi recurrence, gap and no-candidate handling, when the HMM helped and when it did not |
+| KKR | Dataset structure, why labels need order-constrained matching, how the candidate radius was chosen, how the UI talks to the API, Naive Bayes and why its independence assumption hurts here |
+| Krishna Jha | Every feature and why it helps, GroupKFold and why random splits leak, macro F1 vs Top-1, log loss, Logistic Regression and KNN |
+| Joshua | Random Forest vs XGBoost, why the final model was chosen, Bayesian optimisation (TPE, search space, objective), the API flow and logging |
+| Julia | HMM states, emissions and transitions, the Viterbi recurrence, gap and no-candidate handling, when the HMM helped and when it did not, the MLP and its loss curves |
 
 Everyone should be able to answer every row, not just their own.
