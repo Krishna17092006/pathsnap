@@ -7,7 +7,7 @@ This package contains Julia's HMM/Viterbi implementation, route metrics, predict
 No. `src/hmm.py` contains the decoder implementation and is imported by the pipeline. Use the runner at the project root:
 
 ```bash
-python run_julia_hmm.py
+python scripts/run_julia_hmm.py
 ```
 
 This performs two stages:
@@ -33,7 +33,7 @@ python -m src.evaluate_hmm
 python -m src.evaluate_hmm --quick
 
 # Skip tuning and use the already saved decoder parameters
-python run_julia_hmm.py --skip-tune
+python scripts/run_julia_hmm.py --skip-tune
 ```
 
 ## Colab setup
@@ -47,7 +47,7 @@ python run_julia_hmm.py --skip-tune
 - `src/hmm.py` — directed-network HMM emissions, transitions, shortest paths and Viterbi decoder.
 - `src/route_metrics.py` — pointwise Top-1, route continuity and sequence precision/recall/F1.
 - `src/pipeline.py` — `load_artifacts`, `predict_trip` and `score_trip`; prediction does not read `trip.route`.
-- `src/tune_hmm.py`, `src/evaluate_hmm.py`, `run_julia_hmm.py` — tuning and integration runs.
+- `src/tune_hmm.py`, `src/evaluate_hmm.py`, `scripts/run_julia_hmm.py` — tuning and integration runs.
 - `src/model_zoo.py`, `src/train.py`, `notebooks/julia_mlp_training.ipynb` — MLP registration/training.
 - `artifacts/mlp_model.joblib`, `artifacts/features.json`, `artifacts/hmm.json`, `artifacts/mlp_metadata.json` — Julia's standalone inference assets. `mlp_model.joblib` does not replace Joshua's shared `model.joblib`.
 

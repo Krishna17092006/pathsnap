@@ -67,10 +67,14 @@ def _prepare_trip(trip_id: str, art: dict):
 def _evaluate_one(trip, net, cand: pd.DataFrame, fixes: pd.DataFrame,
                   probabilities, config: DecoderConfig):
     pred_hmm = viterbi_decode(cand, fixes, net, probabilities=probabilities, config=config)
+    # Classifier-only prediction = highest-probability candidate per fix (ties -> nearer candidate).
+    # Without a model it falls back to the nearest candidate, which is then the baseline.
     clf = np.full(len(fixes), -1, dtype="int64")
     fix_pos = {int(fid): i for i, fid in enumerate(fixes.fix_idx)}
-    nearest = cand.sort_values(["fix_idx", "cand_rank"], kind="stable").drop_duplicates("fix_idx")
-    for row in nearest.itertuples():
+    scored = cand.assign(_p=probabilities if probabilities is not None else -cand["cand_rank"].to_numpy())
+    top = scored.sort_values(["fix_idx", "_p", "cand_rank"], ascending=[True, False, True],
+                             kind="stable").drop_duplicates("fix_idx")
+    for row in top.itertuples():
         clf[fix_pos[int(row.fix_idx)]] = int(row.arc_id)
     m_clf = pointwise_accuracy(fixes, clf, net)
     m_hmm = pointwise_accuracy(fixes, pred_hmm, net)
@@ -104,7 +108,13 @@ def _select_trip_ids(max_trips: int, quick: bool = False) -> list[str]:
     return [eligible[i][0] for i in indices]
 
 
-def run(quick: bool = False, max_trips: int = 3):
+DEFAULT_BETAS = (25.0, 50.0, 100.0, 200.0, 400.0, 800.0)
+DEFAULT_WEIGHTS = (0.5, 1.0, 2.0)
+DEFAULT_GAPS = (30.0, 60.0)
+
+
+def run(quick: bool = False, max_trips: int = 3, betas=DEFAULT_BETAS, weights=DEFAULT_WEIGHTS,
+        gaps=DEFAULT_GAPS):
     trip_ids = _select_trip_ids(2 if quick else max_trips, quick=quick)
     art = load_artifacts()
     emission_source = "classifier_probability" if art.get("model_bundle") is not None else "distance_gaussian"
@@ -117,14 +127,12 @@ def run(quick: bool = False, max_trips: int = 3):
         print(f"  prepared {i}/{len(trip_ids)} {tid}: {len(item[2]):,} candidates, "
               f"{len(item[3]):,} fixes ({time.perf_counter() - started:.1f}s)", flush=True)
 
-    betas = [25.0, 100.0]
     # Sigma only affects the distance-Gaussian fallback. With classifier
     # probabilities it is held at the saved default rather than duplicating
     # identical grid rows.
     sigmas = [5.0, 10.0] if emission_source == "distance_gaussian" else [8.0]
-    gaps = [30.0, 60.0]
-    weights = [0.5, 1.0]
-    combos = list(itertools.product(betas, sigmas, gaps, weights))
+    combos = list(itertools.product([float(b) for b in betas], sigmas, [float(g) for g in gaps],
+                                    [float(w) for w in weights]))
     rows = []
     start = time.perf_counter()
     for k, (beta, sigma, gap, weight) in enumerate(combos, 1):
@@ -164,6 +172,8 @@ def run(quick: bool = False, max_trips: int = 3):
                "n_configurations": len(combos), "seed": SEED,
                "emission_source": emission_source,
                "best_config": best_cfg.to_dict(),
+               "grid": {"betas": list(betas), "emission_weights": list(weights), "gap_threshold_s": list(gaps)},
+               "classifier_baseline": "highest classifier probability per fix (nearest candidate without a model)",
                "selection_note": ("Two smallest training trips for a smoke test." if quick else
                                   "Deterministic size-stratified subset of TRAIN trips with <=1500 fixes; "
                                   "use --max-trips 80 for the full training partition.")}
@@ -196,5 +206,8 @@ if __name__ == "__main__":
     parser.add_argument("--quick", action="store_true", help="Use 2 training trips for a smoke test")
     parser.add_argument("--max-trips", type=int, default=3,
                         help="Number of size-stratified TRAIN trips (use 80 for all)")
+    parser.add_argument("--betas", type=float, nargs="+", default=list(DEFAULT_BETAS))
+    parser.add_argument("--weights", type=float, nargs="+", default=list(DEFAULT_WEIGHTS))
+    parser.add_argument("--gaps", type=float, nargs="+", default=list(DEFAULT_GAPS))
     args = parser.parse_args()
-    run(args.quick, args.max_trips)
+    run(args.quick, args.max_trips, args.betas, args.weights, args.gaps)

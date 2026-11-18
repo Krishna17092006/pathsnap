@@ -62,10 +62,30 @@ def test_source_tuned_without_tuning_results_fails_clearly(tmp_path, dataset):
 
 def test_hmm_config_is_used(tmp_path, dataset):
     cfg = tmp_path / "decoder.json"
-    cfg.write_text(json.dumps({"beta_m": 3.2, "gap_split_s": 45}))
+    cfg.write_text(json.dumps({"beta": 320.0, "gap_threshold_s": 45.0, "unrelated": 1}))
     out = _export(tmp_path, dataset, source="refit", hmm_config=cfg)
     hmm = json.loads((out / "hmm.json").read_text())
-    assert hmm["beta_m"] == 3.2 and hmm["status"].startswith("tuned")
+    assert hmm["beta"] == 320.0 and hmm["gap_threshold_s"] == 45.0 and hmm["status"].startswith("tuned")
+    assert "unrelated" not in hmm
+
+
+def test_existing_hmm_json_is_preserved_and_readable_by_pipeline(tmp_path, dataset):
+    from src.pipeline import load_artifacts
+    out = tmp_path / "artifacts"
+    out.mkdir()
+    (out / "hmm.json").write_text(json.dumps({"beta": 400.0, "sigma": 8.0, "gap_threshold_s": 30.0,
+                                              "emission_weight": 1.0}))
+    _export(tmp_path, dataset, source="refit")
+    assert json.loads((out / "hmm.json").read_text())["beta"] == 400.0
+    art = load_artifacts(out)
+    assert art["decoder_config"].beta == 400.0 and art["model_path"].endswith("model.joblib")
+
+
+def test_invalid_hmm_config_rejected(tmp_path, dataset):
+    cfg = tmp_path / "bad.json"
+    cfg.write_text(json.dumps({"beta": -1.0}))
+    with pytest.raises(ValueError):
+        _export(tmp_path, dataset, source="refit", hmm_config=cfg)
 
 
 def test_check_detects_tampering(tmp_path, dataset):

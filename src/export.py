@@ -42,24 +42,23 @@ from .config import ARTIFACTS_DIR, CANDIDATE_RADIUS_M, LABEL_MAX_DIST_M, N_FOLDS
 from .data_io import DATA_DIR
 from .evaluate import training_rows
 from .features import FEATURE_COLUMNS, load_or_build, save_feature_list
+from .hmm import DecoderConfig
 from .model_zoo import canonical_model_name, get_spec
 
 MODEL_FILE, FEATURES_FILE, HMM_FILE, METADATA_FILE = "model.joblib", "features.json", "hmm.json", "metadata.json"
 
-# Starting decoder parameters from the TEAM.md HMM plan. They are written with status "default" until the
-# decoder grid search (results/hmm/) produces tuned values, which are passed in with --hmm-config.
-DEFAULT_HMM = {
-    "status": "default (untuned): replace with tuned decoder parameters via --hmm-config",
-    "hidden_states": "candidate arcs within the candidate radius of each fix",
-    "emission": "log of the classifier probability, clipped below at prob_floor",
-    "prob_floor": 1e-6,
-    "fallback_emission_sigma_m": 7.0,
-    "transition": "-|route_distance - gps_distance| / beta_m (Newson & Krumm 2009)",
-    "beta_m": 5.0,
-    "gap_split_s": 60.0,
-    "max_speed_mps": 50.0,
-    "min_search_radius_m": 200.0,
-}
+# hmm.json uses the field names of src.hmm.DecoderConfig, which src.pipeline.load_artifacts reads.
+# Priority: --hmm-config (e.g. results/hmm/best_decoder.json) > an existing artifacts/hmm.json > these defaults.
+DEFAULT_HMM = {**DecoderConfig().to_dict(),
+               "status": "default (untuned): run `python -m src.tune_hmm` or pass --hmm-config"}
+
+
+def _decoder_fields(values: dict) -> dict:
+    """Keep only DecoderConfig fields and check they form a valid configuration."""
+    allowed = set(DecoderConfig.__dataclass_fields__)
+    fields = {k: v for k, v in values.items() if k in allowed}
+    DecoderConfig(**fields)   # raises on invalid values
+    return fields
 
 
 @dataclass
@@ -186,11 +185,15 @@ def export(model: str = "xgboost", source: str = "auto", out_dir: Path = ARTIFAC
         raise TypeError("the exported model must implement predict_proba")
 
     hmm = dict(DEFAULT_HMM)
-    if hmm_config is not None:
-        loaded_hmm = json.loads(Path(hmm_config).read_text())
+    existing = out_dir / HMM_FILE
+    if hmm_config is not None or existing.exists():
+        src_path = Path(hmm_config) if hmm_config is not None else existing
+        loaded_hmm = json.loads(src_path.read_text())
         if not isinstance(loaded_hmm, dict):
-            raise ValueError("--hmm-config must contain a JSON object")
-        hmm = {**loaded_hmm, "status": f"tuned (from {Path(hmm_config).as_posix()})"}
+            raise ValueError(f"{src_path} must contain a JSON object")
+        status = loaded_hmm.get("status") if hmm_config is None else None
+        hmm = {**DecoderConfig().to_dict(), **_decoder_fields(loaded_hmm),
+               "status": status or f"tuned (from {src_path.as_posix()})"}
 
     # write into a temporary folder first so a failure never leaves a half-written artifacts/
     tmp = out_dir.with_name(out_dir.name + ".tmp")
