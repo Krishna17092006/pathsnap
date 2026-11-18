@@ -18,7 +18,7 @@ PathSnap matches noisy GPS observations to a road network and reconstructs the r
 
 ```
 pathsnap/
-├── data/                  # raw dataset (not committed; see "Data setup")
+├── data/                  # raw dataset (train + student_test included; processed/ and eval/ are not committed)
 │   ├── train/             # 80 trips
 │   └── student_test/      # 10 trips
 ├── src/
@@ -37,7 +37,8 @@ pathsnap/
 ├── tests/                 # pytest suite on synthetic trips
 ├── results/eda/           # EDA tables (CSV), figures (PNG), summary
 ├── results/candidates/    # label coverage, candidate miss rate vs radius, data decisions
-└── maps/eda/              # interactive Folium maps (HTML)
+├── maps/eda/              # interactive Folium maps (HTML)
+└── docs/guidelines/       # the five official hackathon PDFs
 ```
 
 ## Setup
@@ -50,7 +51,7 @@ pip install -r requirements.txt
 
 ### Data setup
 
-Unzip the provided `Student folder.zip` so the trip folders sit directly under `data/`:
+The dataset is included in the repository, so cloning is enough. The trip folders sit directly under `data/`:
 
 ```
 data/train/00000001/00000001.track
@@ -60,6 +61,8 @@ data/train/00000001/00000001.route
 ...
 data/student_test/00000000/...
 ```
+
+Files are stored byte-for-byte as provided (`.gitattributes` disables line-ending conversion). Evaluator trips are never committed: `data/eval/` is git-ignored.
 
 Each trip has four headerless, whitespace-separated files:
 
