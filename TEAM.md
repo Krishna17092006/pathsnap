@@ -329,7 +329,7 @@ Branch: `joshua/models-tuning-api`
   - Refit on all train data with the best parameters
   - Evaluate on student_test and produce a **tuned vs untuned** table: CV macro F1, student-test Top-1, macro F1, log loss, inference time
   - Record compute time
-- [ ] **`src/export.py`:** writes `artifacts/` (section 2.5)
+- [x] **`src/export.py`:** writes `artifacts/` (section 2.5). Written by Krishna Jha so Joshua could focus on the API; run it after tuning: `python -m src.export`
 - [ ] **FastAPI backend** `api/main.py` (Laptop 1; add `fastapi`, `uvicorn` to requirements):
   - Endpoints as in section 2.7
   - Load artifacts once at startup; calls Julia's `predict_trip` and `score_trip`

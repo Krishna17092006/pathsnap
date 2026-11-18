@@ -38,6 +38,7 @@ pathsnap/
 │   ├── model_zoo.py       # model registry (name -> family, factory, config)
 │   ├── train.py           # CV + student_test evaluation, writes results/models/
 │   ├── compare.py         # model-comparison figures from the saved CSVs
+│   ├── export.py          # writes artifacts/ (model, features, HMM params, metadata) for the API
 │   ├── naive_bayes.py     # model 3 (KKR): Gaussian Naive Bayes, three-configuration study
 │   └── label_noise_experiment.py  # data decision: train with / without the noisy-label trips
 ├── tests/                 # pytest suite on synthetic trips
@@ -216,6 +217,25 @@ python -m src.train --model gaussian_nb
 - The configuration with the highest mean CV Top-1 is registered in `src/model_zoo.py` as `gaussian_nb`.
 - Results go to `results/models/naive_bayes/`: summary, per-fold metrics, student_test metrics, figures.
 - `notebooks/naive_bayes.ipynb` walks through the selected model with all metrics. It's saved with outputs, and `naive_bayes.html` is a static copy. To re-run it, open it with `jupyter notebook notebooks/naive_bayes.ipynb` after `python -m src.features`.
+
+### Export the final model (artifacts for the API)
+
+```bash
+python -m src.export                                   # xgboost: the Optuna-tuned model if results/tuning/xgboost/ exists, else a refit on all train trips
+python -m src.export --model xgboost --source tuned    # insist on the tuned model
+python -m src.export --hmm-config results/hmm/decoder_params.json   # include tuned HMM decoder parameters
+python -m src.export --check                           # verify artifacts/ loads and predicts
+```
+
+Writes `artifacts/model.joblib`, `features.json`, `hmm.json` and `metadata.json` (source, parameters, CV/student-test scores, SHA-256 of the model file, library versions). Only train trips are used for fitting. Until the decoder grid search exists, `hmm.json` holds default parameters marked `"status": "default (untuned)"`.
+
+Load the folder in the API or pipeline with:
+
+```python
+from src.export import read_artifacts
+art = read_artifacts("artifacts")          # model, features, hmm, metadata (checksum verified)
+prob = art.predict_proba(candidate_rows)   # P(candidate is the true arc)
+```
 
 ### Tests
 
