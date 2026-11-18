@@ -8,14 +8,21 @@ import numpy as np
 
 from .geo import haversine_m
 from .network import RoadNetwork
-from .plot_style import CRITICAL, GPS_COLOR, INK, INK_2, NETWORK_COLOR, PARTITION_COLOR, PARTITION_LABEL, ROUTE_COLOR
+from .plot_style import (CRITICAL, GPS_COLOR, INK, INK_2, NETWORK_COLOR, PARTITION_COLOR, PARTITION_LABEL, PRED_COLOR,
+                         ROUTE_COLOR)
 
 
 def _base_map(lat: float, lon: float, zoom: int = 14) -> folium.Map:
     m = folium.Map(location=[lat, lon], zoom_start=zoom, tiles=None, control_scale=True)
     folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(m)
-    folium.TileLayer("Esri.WorldImagery", name="Satellite (Esri)").add_to(m)
+    folium.TileLayer("Esri.WorldImagery", name="Satellite (Esri)", show=False).add_to(m)
     return m
+
+
+def _endpoint_markers(m: folium.Map, start, end) -> None:
+    """Start/end pins with Font Awesome icons (bundled by folium; the glyphicon set often fails to load)."""
+    folium.Marker(start, tooltip="Start", icon=folium.Icon(color="green", icon="play", prefix="fa")).add_to(m)
+    folium.Marker(end, tooltip="End", icon=folium.Icon(color="darkred", icon="flag-checkered", prefix="fa")).add_to(m)
 
 
 def add_legend(m: folium.Map, title: str, items: list[tuple[str, str, str]]) -> None:
@@ -92,8 +99,7 @@ def trip_map(trip, net: RoadNetwork, dist_to_route=None, gap_threshold_s: float 
                                 tooltip=tip).add_to(fg_gap)
         fg_gap.add_to(m)
 
-    folium.Marker([lat[0], lon[0]], tooltip="Start", icon=folium.Icon(color="green", icon="play")).add_to(m)
-    folium.Marker([lat[-1], lon[-1]], tooltip="End", icon=folium.Icon(color="darkred", icon="stop")).add_to(m)
+    _endpoint_markers(m, [lat[0], lon[0]], [lat[-1], lon[-1]])
     folium.LayerControl(collapsed=False).add_to(m)
     m.fit_bounds([[float(lat.min()), float(lon.min())], [float(lat.max()), float(lon.max())]])
 
@@ -102,6 +108,52 @@ def trip_map(trip, net: RoadNetwork, dist_to_route=None, gap_threshold_s: float 
     if len(gap_idx):
         items.append((f"GPS gap > {gap_threshold_s:.0f} s", CRITICAL, "dash"))
     add_legend(m, f"{PARTITION_LABEL.get(trip.partition, trip.partition)} trip {trip.trip_id}", items)
+    return m
+
+
+def _as_polylines(route) -> list[list[list[float]]]:
+    """Accept one polyline [[lat, lon], ...] or several [[[lat, lon], ...], ...]."""
+    if not route:
+        return []
+    first = route[0]
+    if len(first) and isinstance(first[0], (list, tuple)):
+        return [list(map(list, line)) for line in route if len(line) >= 2]
+    return [list(map(list, route))] if len(route) >= 2 else []
+
+
+def prediction_map(gps, predicted_route, title: str, max_points: int = 1500) -> folium.Map:
+    """GPS fixes and a predicted route, both as [lat, lon] lists (the API response format).
+
+    Used by the evaluator UI, which only ever receives predictions, never the reference route.
+    """
+    pts = np.asarray(gps, dtype="float64").reshape(-1, 2)
+    lines = _as_polylines(predicted_route)
+    all_pts = np.vstack([pts] + [np.asarray(line, dtype="float64") for line in lines]) if lines else pts
+    m = _base_map(float(all_pts[:, 0].mean()), float(all_pts[:, 1].mean()))
+
+    # GPS first, predicted route on top, so the prediction stays visible over dense fixes.
+    if len(pts):
+        step = max(1, int(np.ceil(len(pts) / max_points)))
+        shown = "all" if step == 1 else f"every {step}th"
+        fg_gps = folium.FeatureGroup(name=f"GPS observations ({shown})")
+        for i in range(0, len(pts), step):
+            folium.CircleMarker(pts[i].tolist(), radius=2.5, color=GPS_COLOR, weight=1, fill=True,
+                                fill_color=GPS_COLOR, fill_opacity=0.7, tooltip=f"fix #{i}").add_to(fg_gps)
+        fg_gps.add_to(m)
+
+    if lines:
+        fg_route = folium.FeatureGroup(name="Predicted route")
+        for line in lines:
+            folium.PolyLine(line, color=PRED_COLOR, weight=5, opacity=0.9, tooltip="Predicted route").add_to(fg_route)
+        fg_route.add_to(m)
+
+    if len(pts):
+        _endpoint_markers(m, pts[0].tolist(), pts[-1].tolist())
+
+    folium.LayerControl(collapsed=False).add_to(m)
+    m.fit_bounds([[float(all_pts[:, 0].min()), float(all_pts[:, 1].min())],
+                  [float(all_pts[:, 0].max()), float(all_pts[:, 1].max())]])
+    add_legend(m, title, [("Predicted route", PRED_COLOR, "line"), ("GPS observation", GPS_COLOR, "dot")])
     return m
 
 
