@@ -1,0 +1,94 @@
+{
+  "model": "xgboost",
+  "family": "Boosting ensemble",
+  "description": "XGBoost hist, 350 trees, lr=0.06, max_depth=6, subsample/colsample 0.85, reg_lambda=2 (Optuna-tuned)",
+  "source": "tuned",
+  "params": {
+    "n_estimators": 400,
+    "learning_rate": 0.022867628178107367,
+    "max_depth": 6,
+    "min_child_weight": 3.275997058271572,
+    "subsample": 0.7226377748197736,
+    "colsample_bytree": 0.7337248481829695,
+    "reg_lambda": 0.9601967316825686,
+    "gamma": 2.198642888110843
+  },
+  "details": {
+    "source_file": "results/tuning/xgboost/tuned_model.joblib",
+    "tuning": {
+      "objective": "group_cv_top1",
+      "best_value": 0.8478322452241077,
+      "n_trials_total": 40,
+      "search_seconds": 443.04857508296845,
+      "max_train_rows_per_fold_during_search": 300000,
+      "final_fit_seconds": 9.065355958999135
+    },
+    "tuned_vs_untuned": [
+      {
+        "model": "xgboost",
+        "configuration": "untuned",
+        "cv_top1_mean": 0.8469088358164882,
+        "cv_top1_std": 0.0431026822136288,
+        "cv_macro_f1_mean": 0.9168028423852485,
+        "cv_macro_f1_std": 0.0260896936082001,
+        "cv_log_loss_mean": 0.0768335088065429,
+        "cv_candidate_miss_rate_mean": 0.0134692642851074,
+        "student_test_top1": 0.8748889933657211,
+        "student_test_macro_f1": 0.9273281088437358,
+        "student_test_log_loss": 0.0602067367847849,
+        "student_test_candidate_miss_rate": 0.0005223841613122,
+        "inference_ms_per_1000_fixes": 4.825685020158989,
+        "fit_seconds": 7.620888207980897,
+        "n_valid_student_fixes": 19143,
+        "cv_max_train_rows_per_fold": 300000
+      },
+      {
+        "model": "xgboost",
+        "configuration": "tuned",
+        "cv_top1_mean": 0.8478322452241077,
+        "cv_top1_std": 0.0404826020564286,
+        "cv_macro_f1_mean": 0.9181347094253548,
+        "cv_macro_f1_std": 0.0247599465570888,
+        "cv_log_loss_mean": 0.0755914446139663,
+        "cv_candidate_miss_rate_mean": 0.0134692642851074,
+        "student_test_top1": 0.8708143969074857,
+        "student_test_macro_f1": 0.926236751947734,
+        "student_test_log_loss": 0.0608988130108089,
+        "student_test_candidate_miss_rate": 0.0005223841613122,
+        "inference_ms_per_1000_fixes": 6.00372087796139,
+        "fit_seconds": 9.065355958999136,
+        "n_valid_student_fixes": 19143,
+        "cv_max_train_rows_per_fold": 300000
+      }
+    ]
+  },
+  "n_features": 19,
+  "model_file_sha256": "bebc135d69f47326db7c2ae43aaf9da05d25f5262b355fec17c09e23e511aa32",
+  "model_file_mb": 0.585889,
+  "scores_untuned_model_comparison": {
+    "cv_macro_f1_mean": 0.9155522762021274,
+    "cv_macro_f1_std": 0.0363097674050165,
+    "cv_top1_mean": 0.8440962848213264,
+    "cv_top1_std": 0.0656347359684441,
+    "cv_log_loss_mean": 0.0768171714625422,
+    "st_top1": 0.8730084103849971,
+    "st_macro_f1": 0.9266958163139936,
+    "st_log_loss": 0.0604769938142136,
+    "st_route_continuity": 0.949242819843342,
+    "infer_ms_per_1k_fixes": 31.154780793833712
+  },
+  "seed": 42,
+  "n_folds": 5,
+  "candidate_radius_m": 50.0,
+  "label_max_dist_m": 100.0,
+  "created_utc": "2026-11-18T11:14:49+00:00",
+  "versions": {
+    "python": "3.12.15",
+    "sklearn": "1.7.2",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3",
+    "joblib": "1.6.0",
+    "xgboost": "3.2.0"
+  },
+  "data_rule": "fitted on train trips only; student_test and evaluator trips never used for fitting"
+}
