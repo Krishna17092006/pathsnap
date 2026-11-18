@@ -61,7 +61,17 @@ def load_artifacts(artifact_dir: str | Path = ARTIFACTS_DIR) -> dict:
     decoder = DecoderConfig(**{k: v for k, v in hmm_values.items() if k in allowed})
     return {"model_bundle": model_bundle, "feature_columns": list(feature_columns),
             "decoder_config": decoder, "artifact_dir": str(root),
-            "model_path": str(model_path) if model_path.exists() else None}
+            "model_path": str(model_path) if model_path.exists() else None,
+            "model_name": _model_name(root, model_path, model_bundle)}
+
+
+def _model_name(root: Path, model_path: Path, model_bundle) -> str:
+    """Short name of the classifier behind the HMM emissions, used to name result folders."""
+    if model_bundle is None:
+        return "distance_gaussian"
+    if model_path.name == "mlp_model.joblib":
+        return "mlp"
+    return str(_read_json(root / "metadata.json", {}).get("model") or "model")
 
 
 def _model_probabilities(feature_frame: pd.DataFrame, art: dict) -> np.ndarray | None:

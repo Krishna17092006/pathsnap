@@ -59,10 +59,15 @@ def main() -> int:
         eval_cmd.append("--quick")
     run_step(eval_cmd, "STEP 2 — Compare classifier-only vs HMM on student_test")
 
-    print("\nCompleted. Key outputs:")
-    for rel in ["artifacts/hmm.json", "results/hmm/decoder_grid.csv",
-                "results/hmm/classifier_vs_hmm.csv", "results/hmm/hmm_non_improvements.csv",
-                "results/hmm/classifier_vs_hmm.png", "maps/results"]:
+    # Outputs are written per emission model: results/hmm/<model>/ and maps/results/<model>_hmm/.
+    sys.path.insert(0, str(ROOT))
+    from src.pipeline import load_artifacts
+    name = load_artifacts(ROOT / "artifacts")["model_name"]
+    print(f"\nCompleted (emission model: {name}). Key outputs:")
+    for rel in ["artifacts/hmm.json", f"results/hmm/{name}/decoder_grid.csv",
+                f"results/hmm/{name}/classifier_vs_hmm.csv", f"results/hmm/{name}/hmm_non_improvements.csv",
+                f"results/hmm/{name}/integration_summary.json", f"results/hmm/{name}/predictions.parquet",
+                f"results/hmm/{name}/classifier_vs_hmm.png", f"maps/results/{name}_hmm"]:
         p = ROOT / rel
         print(f"  {'OK' if p.exists() else 'MISSING'}  {rel}")
     return 0
