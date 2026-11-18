@@ -31,7 +31,10 @@ pathsnap/
 │   ├── config.py          # shared constants (seed, folds, candidate radius, label threshold)
 │   ├── labels.py          # per-fix labels by order-constrained matching to the reference route
 │   ├── candidates.py      # candidate arcs per fix + candidate/fix tables
-│   └── build_dataset.py   # builds data/processed/*.parquet and the radius analysis
+│   ├── build_dataset.py   # builds data/processed/*.parquet and the radius analysis
+│   ├── features.py        # geometric/kinematic features per (fix, candidate arc)
+│   └── evaluate.py        # GroupKFold CV, candidate- and fix-level metrics
+├── tests/                 # pytest suite on synthetic trips
 ├── results/eda/           # EDA tables (CSV), figures (PNG), summary
 ├── results/candidates/    # label coverage, candidate miss rate vs radius, data decisions
 └── maps/eda/              # interactive Folium maps (HTML)
@@ -98,6 +101,28 @@ Outputs:
 - `results/candidates/`: miss rate vs radius, per-trip label statistics, figures, and `dataset_summary.md` (data decisions)
 
 The column definitions are in `TEAM.md` section 2.2.
+
+### Features
+
+```bash
+python -m src.features    # writes data/processed/features_<partition>.parquet
+```
+
+`src/features.py` adds 19 model-input columns (`FEATURE_COLUMNS`) to the candidate table: distance (absolute and relative to the nearest candidate), heading vs arc direction with a speed-based confidence, speed and time gaps, arc shape and topology, and links to neighbouring fixes' nearest arcs. Features use only the GPS track and the road network, never `.route`, labels or ids. `add_features(cand_df, trip, net)` is the same function used at inference time.
+
+### Evaluation framework
+
+`src/evaluate.py` is shared by every model:
+- `group_cv(factory, params, cand, fixes, FEATURE_COLUMNS)`: GroupKFold by trip on the train partition. Each model is an sklearn estimator or Pipeline, so preprocessing is fitted inside each training fold.
+- Candidate-level metrics: accuracy, precision, recall, macro F1, confusion matrix, log loss.
+- Fix-level metrics: Top-1 accuracy and candidate miss rate over the **fix table**, so labelled fixes without a correct candidate count as wrong. Plus classifier-only route continuity.
+- Training time, inference time per 1,000 fixes, and train-fold macro F1 for over/underfitting checks.
+
+### Tests
+
+```bash
+python -m pytest tests -q
+```
 
 ## Data-partition rules
 
