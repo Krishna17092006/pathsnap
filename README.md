@@ -41,8 +41,9 @@ pathsnap/
 │   ├── export.py          # writes artifacts/ (model, features, HMM params, metadata) for the API
 │   ├── naive_bayes.py     # model 3 (KKR): Gaussian Naive Bayes, three-configuration study
 │   └── label_noise_experiment.py  # data decision: train with / without the noisy-label trips
-├── tests/                 # pytest suite on synthetic trips
+├── tests/                 # pytest suite (synthetic trips + real-trip API tests)
 ├── notebooks/             # naive_bayes.ipynb (+ .html): Naive Bayes walkthrough with all metrics
+├── api/                   # FastAPI backend (main.py, Laptop 1): serves src.pipeline.predict_trip
 ├── ui/                    # Streamlit evaluator UI (app.py) and a mock API for development (mock_api.py)
 ├── results/eda/           # EDA tables (CSV), figures (PNG), summary
 ├── results/candidates/    # label coverage, candidate miss rate vs radius, data decisions
@@ -124,6 +125,53 @@ python -m src.label_noise_experiment
 ```
 
 It trains `gaussian_nb` and `logreg` with and without those trips on the same CV folds, then writes `results/candidates/label_noise_experiment.md`.
+
+### API backend (Laptop 1)
+
+`api/main.py` serves the real pipeline from `src/pipeline.py`, with the exported artifacts (`artifacts/model.joblib` = tuned XGBoost, `features.json`, `hmm.json`, `metadata.json`). It does not re-implement map matching.
+
+```bash
+# demo: the 10 evaluator trips in data/eval/<trip_id>/<trip_id>.{track,nodes,arcs,route}
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+
+# rehearsal with the student_test trips (bash / Windows cmd)
+PATHSNAP_TRIPS_DIR=data/student_test uvicorn api.main:app --host 0.0.0.0 --port 8000
+set PATHSNAP_TRIPS_DIR=data/student_test && uvicorn api.main:app --host 0.0.0.0 --port 8000
+```
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PATHSNAP_TRIPS_DIR` | `data/eval` | trip folders the API serves (relative paths resolve from the repo root) |
+| `PATHSNAP_ARTIFACTS_DIR` | `artifacts` | exported model + decoder (`python -m src.export`) |
+| `PATHSNAP_CORS_ORIGINS` | `*` | allowed UI origins, comma-separated |
+
+At startup the API checks all four artifact files, verifies the model checksum, and loads them **once**. If anything is missing or invalid, startup fails with a clear message. There is no mock fallback.
+
+| Endpoint | Response |
+|---|---|
+| `GET /health` | `{"status": "ok", "mode": "real", "model": "xgboost", "model_source": "tuned"}` |
+| `GET /trips` | `{"trips": ["00000000", ...]}`: the 8-digit folders in `PATHSNAP_TRIPS_DIR` |
+| `POST /predict/{trip_id}` | `trip_id`, `n_fixes`, `gps` ([lat, lon] per fix), `predicted_route` (list of [lat, lon] polylines, split where the route breaks), `predicted_arcs`, `metrics`, `timing_ms`, `mode: "real"` |
+| `POST /evaluate/{trip_id}` | `metrics` with `top1_classifier`, `top1_hmm`, `route_continuity_clf/hmm`, `route_precision/recall/f1`, `n_fixes`, `n_valid_fixes` |
+
+Details:
+- **`/predict`** loads the trip **without opening its `.route` file** and calls `predict_trip`. Its `metrics` contain only values that need no reference route: `n_candidates`, `n_unmatched_fixes`, `n_route_arcs`, `route_continuity_clf/hmm`.
+- **`/evaluate`** is the server-side accuracy check the evaluation requires. The prediction is still made without the route. The route is read only afterwards, by `score_trip`, and only aggregate numbers are returned, never the route or per-fix labels.
+- **`timing_ms`:** `candidates`, `model` (features + classifier), `hmm`, `pipeline` and `total`.
+- **Errors:** an unknown or invalid trip id returns 404, malformed trip files return 422, an inference failure returns 500 (traceback in the server log).
+- **Logging:** every request is logged to the terminal with timestamp, trip id, number of fixes, candidates, HMM time and total time. Show this log to the evaluator.
+
+**Network:**
+- On Windows, allow inbound TCP 8000 for Python in the firewall (Windows Security → Firewall → Allow an app, or `netsh advfirewall firewall add rule name="PathSnap API" dir=in action=allow protocol=TCP localport=8000`).
+- Find Laptop 1's IP with `ipconfig` (Windows) or `ipconfig getifaddr en0` (macOS).
+
+Quick check from any machine:
+
+```bash
+curl http://<laptop1-ip>:8000/health
+curl -X POST http://<laptop1-ip>:8000/predict/00000052
+curl -X POST http://<laptop1-ip>:8000/evaluate/00000052
+```
 
 ### Evaluator UI (Laptop 2)
 
