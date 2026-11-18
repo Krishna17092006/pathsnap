@@ -39,7 +39,7 @@ import pandas as pd
 import sklearn
 
 from .config import ARTIFACTS_DIR, CANDIDATE_RADIUS_M, LABEL_MAX_DIST_M, N_FOLDS, PROCESSED_DIR, RESULTS_DIR, SEED
-from .data_io import DATA_DIR
+from .data_io import DATA_DIR, PROJECT_ROOT
 from .evaluate import training_rows
 from .features import FEATURE_COLUMNS, load_or_build, save_feature_list
 from .hmm import DecoderConfig
@@ -51,6 +51,14 @@ MODEL_FILE, FEATURES_FILE, HMM_FILE, METADATA_FILE = "model.joblib", "features.j
 # Priority: --hmm-config (e.g. results/hmm/best_decoder.json) > an existing artifacts/hmm.json > these defaults.
 DEFAULT_HMM = {**DecoderConfig().to_dict(),
                "status": "default (untuned): run `python -m src.tune_hmm` or pass --hmm-config"}
+
+
+def _display_path(path: Path) -> str:
+    """Project-relative path for files written into the repo (never the local absolute path)."""
+    try:
+        return Path(path).resolve().relative_to(PROJECT_ROOT).as_posix()
+    except ValueError:
+        return Path(path).name
 
 
 def _decoder_fields(values: dict) -> dict:
@@ -137,7 +145,7 @@ def _tuned_source(model: str, results_dir: Path):
     model_path = d / "tuned_model.joblib"
     if not model_path.exists():
         return None
-    info = {"source": "tuned", "source_file": model_path}
+    info = {"source": "tuned", "source_file": _display_path(model_path)}
     best = d / "best_params.json"
     if best.exists():
         doc = json.loads(best.read_text())
@@ -193,7 +201,7 @@ def export(model: str = "xgboost", source: str = "auto", out_dir: Path = ARTIFAC
             raise ValueError(f"{src_path} must contain a JSON object")
         status = loaded_hmm.get("status") if hmm_config is None else None
         hmm = {**DecoderConfig().to_dict(), **_decoder_fields(loaded_hmm),
-               "status": status or f"tuned (from {src_path.as_posix()})"}
+               "status": status or f"tuned (from {_display_path(src_path)})"}
 
     # write into a temporary folder first so a failure never leaves a half-written artifacts/
     tmp = out_dir.with_name(out_dir.name + ".tmp")
