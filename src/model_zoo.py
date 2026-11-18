@@ -37,6 +37,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from .config import SEED
+from .naive_bayes import gnb_decorrelated
 
 
 @dataclass(frozen=True)
@@ -91,7 +92,14 @@ REGISTRY: dict[str, ModelSpec] = {
         "max_train_rows": 300_000,
         "description": "StandardScaler + KNN, k=50, uniform weights, 300k-row stratified training sample",
     }),
-    # KKR: Gaussian Naive Bayes | Joshua: Random Forest, XGBoost | Julia: MLP  -> add entries here
+    # KKR: model 3. The configuration selected by mean CV Top-1 in src/naive_bayes.py, which compares
+    # three Naive Bayes configurations (results/models/naive_bayes/). Registered as "gaussian_nb" so
+    # train.py's outputs do not overwrite that study.
+    "gaussian_nb": ModelSpec("Probabilistic", gnb_decorrelated, {
+        "params": {"var_smoothing": 1e-9, "corr_threshold": 0.8},
+        "description": "QuantileTransformer(normal) + correlation filter |r|>0.8 (fitted per fold) + GaussianNB",
+    }),
+    # Joshua: Random Forest, XGBoost | Julia: MLP  -> add entries here
 }
 
 
