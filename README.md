@@ -33,10 +33,14 @@ pathsnap/
 │   ├── candidates.py      # candidate arcs per fix + candidate/fix tables
 │   ├── build_dataset.py   # builds data/processed/*.parquet and the radius analysis
 │   ├── features.py        # geometric/kinematic features per (fix, candidate arc)
-│   └── evaluate.py        # GroupKFold CV, candidate- and fix-level metrics
+│   ├── evaluate.py        # GroupKFold CV, candidate- and fix-level metrics
+│   ├── model_zoo.py       # model registry (name -> family, factory, config)
+│   ├── train.py           # CV + student_test evaluation, writes results/models/
+│   └── compare.py         # model-comparison figures from the saved CSVs
 ├── tests/                 # pytest suite on synthetic trips
 ├── results/eda/           # EDA tables (CSV), figures (PNG), summary
 ├── results/candidates/    # label coverage, candidate miss rate vs radius, data decisions
+├── results/models/        # per-model CV/student_test results, model_comparison.csv, figures
 ├── maps/eda/              # interactive Folium maps (HTML)
 └── docs/guidelines/       # the five official hackathon PDFs
 ```
@@ -105,6 +109,24 @@ Outputs:
 
 The column definitions are in `TEAM.md` section 2.2.
 
+### Evaluator UI (Laptop 2)
+
+```bash
+streamlit run ui/app.py
+```
+
+Enter the API address in the sidebar, for example `http://192.168.1.20:8000` (Laptop 1's IP and the API port), or set it beforehand:
+
+```bash
+set PATHSNAP_API_URL=http://192.168.1.20:8000      # Windows cmd
+export PATHSNAP_API_URL=http://192.168.1.20:8000   # bash
+```
+
+The UI lists the trips the API reports, sends the chosen trip id to `POST /predict/{trip_id}`, and shows the predicted route on a map with the scores and timing returned by the API. It never reads trip files or ground truth.
+
+For a local test, use `http://127.0.0.1:<port>` rather than `localhost`: on Windows, `localhost` tries IPv6 first and adds about 2 s to every request.
+
+**UI development without the real API:** `python -m ui.mock_api` starts a stand-in server on port 8765 that follows the same API contract. It performs no map matching: the "route" is the raw GPS path and all scores are empty. Every response is marked `mock`, and the UI shows a warning banner.
 ### Features
 
 ```bash
@@ -120,6 +142,25 @@ python -m src.features    # writes data/processed/features_<partition>.parquet
 - Candidate-level metrics: accuracy, precision, recall, macro F1, confusion matrix, log loss.
 - Fix-level metrics: Top-1 accuracy and candidate miss rate over the **fix table**, so labelled fixes without a correct candidate count as wrong. Plus classifier-only route continuity.
 - Training time, inference time per 1,000 fixes, and train-fold macro F1 for over/underfitting checks.
+
+### Model training and comparison
+
+Register a model in `src/model_zoo.py` (see the example in its docstring), then:
+
+```bash
+python -m src.train --model baseline         # nearest-arc baseline on the same folds
+python -m src.train --model <name>           # one model; repeat --model for several
+python -m src.train --all                    # baseline + every registered model
+python -m src.train --model <name> --quick   # 12 train trips, 3 folds, results/models/quick/ (smoke test)
+python -m src.compare                        # figures from results/models/model_comparison.csv
+```
+
+Each run does GroupKFold CV by trip on the 80 train trips, refits on all of them, and evaluates once on student_test. Outputs:
+- `results/models/<name>/config.json`: model config, feature list, seed, versions
+- `results/models/<name>/cv_folds.csv`: per-fold metrics, including train-fold macro F1 for over/underfitting checks
+- `results/models/<name>/student_test_metrics.json`
+- `results/models/model_comparison.csv`: one row per model (re-running a model replaces its row)
+- `results/models/figures/*.png`: CV macro F1, student_test Top-1 / macro F1, log loss, inference time, train vs CV
 
 ### Tests
 

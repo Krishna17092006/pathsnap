@@ -83,3 +83,55 @@ def test_group_cv_with_placeholder_estimator(synthetic_train):
                 "infer_ms_per_1k_fixes", "candidate_miss_rate"}
     assert expected <= set(folds.columns) and len(folds) == 3
     assert np.isfinite(folds["log_loss"]).all()
+
+
+# ------------------------------------------------------------------ train.py / compare.py
+@pytest.fixture(scope="module")
+def trained(tmp_path_factory):
+    """Runs train.main on synthetic trips with the baseline and a placeholder entry
+    (DummyClassifier, not one of the project's models) registered only for this test."""
+    from src import model_zoo, train
+    root = tmp_path_factory.mktemp("e2e")
+    data_dir, processed_dir = make_dataset(root, n_train=6, n_test=2)
+    results = root / "results"
+    model_zoo.REGISTRY["placeholder"] = model_zoo.ModelSpec("Test only", DummyClassifier,
+                                                            {"params": {"strategy": "prior"}})
+    try:
+        train.main(["--model", "baseline", "--model", "placeholder", "--folds", "3", "--data-dir", str(data_dir),
+                    "--processed-dir", str(processed_dir), "--results-dir", str(results)])
+    finally:
+        model_zoo.REGISTRY.pop("placeholder", None)
+    return results
+
+
+def test_train_writes_all_result_files(trained):
+    import json
+    for name in ["baseline", "placeholder"]:
+        d = trained / name
+        assert (d / "config.json").exists() and (d / "student_test_metrics.json").exists()
+        assert len(pd.read_csv(d / "cv_folds.csv")) == 3
+    table = pd.read_csv(trained / "model_comparison.csv")
+    assert list(table["model"]) == ["baseline", "placeholder"]
+    cfg = json.loads((trained / "placeholder" / "config.json").read_text())
+    assert "label" not in cfg["features"] and "arc_id" not in cfg["features"]
+
+
+def test_rerun_replaces_row_instead_of_duplicating(trained):
+    from src import train
+    path = trained / "model_comparison.csv"
+    before = pd.read_csv(path)
+    train.update_comparison([before.iloc[1].to_dict()], path)
+    after = pd.read_csv(path)
+    assert len(after) == len(before) and after["model"].is_unique
+
+
+def test_unknown_model_fails_fast():
+    from src import model_zoo
+    with pytest.raises(KeyError):
+        model_zoo.get_spec("does_not_exist")
+
+
+def test_compare_makes_figures(trained):
+    from src import compare
+    paths = compare.make_all(trained)
+    assert len(paths) == 5 and all(p.exists() and p.stat().st_size > 0 for p in paths)

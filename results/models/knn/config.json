@@ -1,0 +1,48 @@
+{
+  "model": "knn",
+  "family": "Instance-based",
+  "description": "StandardScaler + KNN, k=50, uniform weights, 300k-row stratified training sample",
+  "config": {
+    "params": {
+      "n_neighbors": 50,
+      "weights": "uniform"
+    },
+    "max_train_rows": 300000,
+    "description": "StandardScaler + KNN, k=50, uniform weights, 300k-row stratified training sample"
+  },
+  "features": [
+    "dist_m",
+    "dist_minus_min",
+    "dist_ratio",
+    "cand_rank",
+    "n_cand",
+    "heading_diff_deg",
+    "cos_heading_diff",
+    "has_heading",
+    "cos_heading_weighted",
+    "speed_mps",
+    "log_dt_prev",
+    "log_dt_next",
+    "log_arc_length",
+    "t_along",
+    "is_two_way",
+    "out_degree_v",
+    "in_degree_u",
+    "prev_nearest_link",
+    "next_nearest_link"
+  ],
+  "seed": 42,
+  "n_folds": 5,
+  "quick": false,
+  "train_trips": 80,
+  "student_test_trips": 10,
+  "train_rows_labelled": 1848746,
+  "cv_seconds": 243.8561248779297,
+  "created_utc": "2026-11-18T06:27:24+00:00",
+  "versions": {
+    "python": "3.12.15",
+    "sklearn": "1.7.2",
+    "numpy": "2.2.6",
+    "pandas": "2.3.3"
+  }
+}
