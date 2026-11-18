@@ -1,0 +1,70 @@
+{
+  "model": "Gaussian Naive Bayes",
+  "owner": "KKR",
+  "seed": 42,
+  "n_folds": 5,
+  "cv": "GroupKFold by trip on the 80 train trips (src/evaluate.py group_cv)",
+  "features": [
+    "dist_m",
+    "dist_minus_min",
+    "dist_ratio",
+    "cand_rank",
+    "n_cand",
+    "heading_diff_deg",
+    "cos_heading_diff",
+    "has_heading",
+    "cos_heading_weighted",
+    "speed_mps",
+    "log_dt_prev",
+    "log_dt_next",
+    "log_arc_length",
+    "t_along",
+    "is_two_way",
+    "out_degree_v",
+    "in_degree_u",
+    "prev_nearest_link",
+    "next_nearest_link"
+  ],
+  "configs": {
+    "gnb_all": {
+      "description": "GaussianNB on all 19 raw features",
+      "params": {
+        "var_smoothing": 1e-09
+      }
+    },
+    "gnb_quantile": {
+      "description": "QuantileTransformer(normal) -> GaussianNB",
+      "params": {
+        "var_smoothing": 1e-09
+      }
+    },
+    "gnb_decorrelated": {
+      "description": "QuantileTransformer(normal) -> drop |r| > 0.8 -> GaussianNB",
+      "params": {
+        "var_smoothing": 1e-09,
+        "corr_threshold": 0.8
+      }
+    }
+  },
+  "kept_features_final_fit": {
+    "gnb_decorrelated": [
+      "dist_m",
+      "dist_minus_min",
+      "n_cand",
+      "has_heading",
+      "cos_heading_weighted",
+      "speed_mps",
+      "log_dt_prev",
+      "log_dt_next",
+      "log_arc_length",
+      "t_along",
+      "is_two_way",
+      "out_degree_v",
+      "in_degree_u",
+      "prev_nearest_link",
+      "next_nearest_link"
+    ]
+  },
+  "selection_rule": "highest mean CV Top-1 (student_test never used for selection)",
+  "selected_config": "gnb_decorrelated"
+}

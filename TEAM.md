@@ -265,14 +265,16 @@ Branch: `kkr/data` (and later `kkr/ui`)
 - [x] **Candidate miss-rate analysis** for R = 25 / 50 / 75 / 100 m: `results/candidates/miss_rate.csv` and figures. R = 50 m chosen (1.38% / 0.05% miss vs 3.71% / 1.38% at 25 m, with 9–11 candidates per fix).
 - [x] **`src/build_dataset.py`:** writes the candidate and fix parquet files for both partitions.
 - [x] **Hand off to the team.** Run `python -m src.build_dataset`.
-- [ ] **Result maps:** extend `src/maps.py` with `result_map(trip, net, pred)` showing GPS, nearby network, reference route, classifier-only prediction and HMM prediction, with layer control and a legend. Generate maps for all 10 student-test trips → `maps/results/`.
+- [x] **Result maps:** `src/maps.py: result_map` + `python -m src.result_maps` (branch `kkr/result-maps`): GPS, nearby network, reference route, classifier-only and HMM predictions, wrong-prediction markers, per-fix error types. Baseline maps for all 10 student-test trips in `maps/results/baseline/`; any method's per-fix predictions via `--predictions <parquet>` (columns `trip_id, fix_idx, arc_clf[, arc_hmm]`).
+- [ ] Re-run the result maps with real classifier + HMM predictions once Julia's `predict_trip` exists
 - [x] **Streamlit UI** (`ui/app.py`, Laptop 2), built and tested against `ui/mock_api.py`:
   - API URL in the sidebar (default from env `PATHSNAP_API_URL`), with a connection check and clear errors (unreachable, wrong port, HTTP errors)
   - `GET /trips` shows all trips as selectable buttons; "Run map matching" calls `POST /predict/{trip_id}`
   - Headline scores (Top-1 HMM vs classifier, route continuity, response time), a Folium map (GPS + predicted route; `src/maps.py: prediction_map`), a scores table, server timing, and a log of every run in the session
   - Never loads data files or ground truth; everything comes from the API
 - [ ] Switch the UI to the real API once Joshua's `api/main.py` serves `predict_trip`, and rehearse on two laptops
-- [ ] **Model 3: Gaussian Naive Bayes** (probabilistic). Add it to `src/model_zoo.py` and run it with `src/train.py`. Note the independence assumption vs correlated features (`dist_m`, `dist_minus_min`, `dist_ratio` and `cand_rank` all describe distance) and its effect on log loss.
+- [x] **Model 3: Gaussian Naive Bayes** (probabilistic): `python -m src.naive_bayes`, which uses the shared features and `group_cv`. Three configurations test its two assumptions: raw, quantile-normal transform, and quantile + correlation filter (fitted inside each fold). Results in `results/models/naive_bayes/`; review notebook `notebooks/naive_bayes.ipynb`.
+- [x] Naive Bayes registered in `src/model_zoo.py` as `gaussian_nb` (the CV-selected configuration) and run with `python -m src.train --model gaussian_nb`, so it is in `results/models/model_comparison.csv`
 - [ ] Report: **§2 EDA**, **§3.2 subsection for Naive Bayes**, **§6 Folium maps**, UI screenshots in **§7**, and final assembly of the PDF.
 
 **Done when:** `python -m src.build_dataset` produces both parquet files with the exact schema, the miss rate is reported, and the UI works against the real API on two laptops.
