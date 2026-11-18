@@ -11,6 +11,9 @@ PathSnap matches noisy GPS observations to a road network and reconstructs the r
 5. HMM and Viterbi route reconstruction
 6. A FastAPI backend (Laptop 1) and a Streamlit UI (Laptop 2)
 
+- **[PROBLEM_STATEMENT.md](PROBLEM_STATEMENT.md):** the problem, data, evaluation and rules
+- **[TEAM.md](TEAM.md):** who does what, shared interfaces, and each member's todo list
+
 ## Repository layout
 
 ```
