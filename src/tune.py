@@ -189,6 +189,14 @@ def _suggest_params(trial: optuna.Trial, model_name: str) -> dict[str, Any]:
     raise ValueError(f"No search space defined for {model_name!r}")
 
 
+def _rel(path: Path) -> str:
+    """Project-relative path for result files (no local absolute paths in the repo)."""
+    try:
+        return path.resolve().relative_to(RESULTS_DIR.parent.resolve()).as_posix()
+    except ValueError:
+        return path.name
+
+
 def _trial_frame(study: optuna.Study) -> pd.DataFrame:
     records = []
     for trial in study.trials:
@@ -352,11 +360,11 @@ def run_tuning(
         "n_trials_total": len(study.trials),
         "max_train_rows_per_fold_during_search": max_train_rows,
         "outputs": {
-            "trials": str(out_dir / "optuna_trials.csv"),
-            "history_plot": str(out_dir / "optimization_history.png"),
-            "importance_plot": str(out_dir / "parameter_importance.png"),
-            "tuned_model": str(out_dir / "tuned_model.joblib"),
-            "comparison": str(out_dir / "tuned_vs_untuned.csv"),
+            "trials": _rel(out_dir / "optuna_trials.csv"),
+            "history_plot": _rel(out_dir / "optimization_history.png"),
+            "importance_plot": _rel(out_dir / "parameter_importance.png"),
+            "tuned_model": _rel(out_dir / "tuned_model.joblib"),
+            "comparison": _rel(out_dir / "tuned_vs_untuned.csv"),
         },
     }
     (out_dir / "tuning_summary.json").write_text(json.dumps(_json_safe(summary), indent=2), encoding="utf-8")

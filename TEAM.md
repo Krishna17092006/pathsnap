@@ -321,7 +321,7 @@ Branch: `joshua/models-tuning-api`
 - [ ] **Choose the final model** from the comparison:
   - Primary metric: group-CV macro F1 or Top-1. Decide with Krishna Jha and write why.
   - Also consider probability quality (log loss matters because the HMM uses the probabilities) and inference speed.
-- [x] **`src/tune.py`: Bayesian optimisation with Optuna** (add `optuna` to requirements): Code by Joshua; run 1 (40 trials) by KKR in `results/tuning/xgboost_run1_with_scale_pos_weight/`; run 2 (in progress) searches with `scale_pos_weight` fixed at 1 and writes `results/tuning/xgboost/`.
+- [x] **`src/tune.py`: Bayesian optimisation with Optuna** (add `optuna` to requirements): Code by Joshua; run 1 (40 trials) by KKR in `results/tuning/xgboost_run1_with_scale_pos_weight/`; run 2 with `scale_pos_weight` fixed at 1 in `results/tuning/xgboost/` (no meaningful gain; tuned model exported to `artifacts/`).
   - TPE sampler, `seed=42`, 30–50 trials
   - Objective: mean group-CV score on the 80 train trips only
   - Justified search space. For XGBoost, for example: `n_estimators`, `learning_rate` (log), `max_depth`, `min_child_weight`, `subsample`, `colsample_bytree`, `reg_lambda` (log).
