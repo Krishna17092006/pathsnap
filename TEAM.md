@@ -263,7 +263,8 @@ Branch: `kkr/data` (and later `kkr/ui`)
   - Show a clear error if the API is unreachable
   - **Never** load data files or ground truth in the UI. Everything comes from the API.
   - Build it against a mocked JSON response first (section 2.7), then switch to the real API.
-- [ ] **Model 3: Gaussian Naive Bayes** (probabilistic). Add it to `src/model_zoo.py` and run it with `src/train.py`. Note the independence assumption vs correlated features (`dist_m`, `dist_minus_min`, `dist_ratio` and `cand_rank` all describe distance) and its effect on log loss.
+- [x] **Model 3: Gaussian Naive Bayes** (probabilistic): `python -m src.naive_bayes`, which uses the shared features and `group_cv`. Three configurations test its two assumptions: raw, quantile-normal transform, and quantile + correlation filter (fitted inside each fold). Results in `results/models/naive_bayes/`.
+- [ ] Register Naive Bayes in `src/model_zoo.py` once `src/train.py` exists, so it lands in `model_comparison.csv`
 - [ ] Report: **§2 EDA**, **§3.2 subsection for Naive Bayes**, **§6 Folium maps**, UI screenshots in **§7**, and final assembly of the PDF.
 
 **Done when:** `python -m src.build_dataset` produces both parquet files with the exact schema, the miss rate is reported, and the UI works against the real API on two laptops.
