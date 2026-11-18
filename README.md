@@ -38,19 +38,25 @@ pathsnap/
 │   ├── model_zoo.py       # model registry (name -> family, factory, config)
 │   ├── train.py           # CV + student_test evaluation, writes results/models/
 │   ├── compare.py         # model-comparison figures from the saved CSVs
+│   ├── hmm.py             # HMM emissions/transitions and Viterbi decoder (Julia)
+│   ├── route_metrics.py   # Top-1, route continuity, route precision/recall/F1
+│   ├── pipeline.py        # load_artifacts, predict_trip (never reads .route), score_trip
+│   ├── tune_hmm.py        # decoder grid search on train trips
+│   ├── evaluate_hmm.py    # classifier-only vs classifier + HMM on student_test
 │   ├── export.py          # writes artifacts/ (model, features, HMM params, metadata) for the API
 │   ├── naive_bayes.py     # model 3 (KKR): Gaussian Naive Bayes, three-configuration study
 │   └── label_noise_experiment.py  # data decision: train with / without the noisy-label trips
 ├── tests/                 # pytest suite (synthetic trips + real-trip API tests)
-├── notebooks/             # naive_bayes.ipynb (+ .html): Naive Bayes walkthrough with all metrics
+├── notebooks/             # naive_bayes.ipynb (+ .html), MLP_Training.ipynb, julia_hmm_viterbi_colab.ipynb (HMM evaluation)
 ├── api/                   # FastAPI backend (main.py, Laptop 1): serves src.pipeline.predict_trip
 ├── ui/                    # Streamlit evaluator UI (app.py) and a mock API for development (mock_api.py)
 ├── results/eda/           # EDA tables (CSV), figures (PNG), summary
 ├── results/candidates/    # label coverage, candidate miss rate vs radius, data decisions
 ├── results/models/        # per-model CV/student_test results, model_comparison.csv, figures
 ├── results/result_maps/   # per-method error breakdown (correct / wrong direction / wrong road)
+├── results/hmm/xgboost/   # classifier-only vs HMM with the tuned XGBoost (results/hmm/: earlier MLP run)
 ├── maps/eda/              # interactive Folium maps (HTML)
-├── maps/results/          # result maps per method (nearest-road baseline now; classifier + HMM later)
+├── maps/results/          # result maps per method (baseline/, xgboost_hmm/ cases where the HMM did not help)
 └── docs/guidelines/       # the five official hackathon PDFs
 ```
 
@@ -271,7 +277,7 @@ python -m src.train --model gaussian_nb
 ```bash
 python -m src.export                                   # xgboost: the Optuna-tuned model if results/tuning/xgboost/ exists, else a refit on all train trips
 python -m src.export --model xgboost --source tuned    # insist on the tuned model
-python -m src.export --hmm-config results/hmm/decoder_params.json   # include tuned HMM decoder parameters
+python -m src.export --hmm-config results/hmm/xgboost/best_decoder.json   # include tuned HMM decoder parameters
 python -m src.export --check                           # verify artifacts/ loads and predicts
 ```
 
@@ -284,6 +290,16 @@ from src.export import read_artifacts
 art = read_artifacts("artifacts")          # model, features, hmm, metadata (checksum verified)
 prob = art.predict_proba(candidate_rows)   # P(candidate is the true arc)
 ```
+
+### HMM route reconstruction (model 6 owner: Julia)
+
+```bash
+python -m src.evaluate_hmm                   # classifier-only vs classifier + HMM on all 10 student_test trips
+python -m src.tune_hmm --max-trips 3         # decoder grid (beta, gap, emission weight) on train trips; writes artifacts/hmm.json
+python scripts/run_julia_hmm.py --skip-tune  # the evaluation, with a check of every output file
+```
+
+The HMM uses the classifier in `artifacts/model.joblib` (the tuned XGBoost). Results go to `results/hmm/xgboost/` and maps to `maps/results/xgboost_hmm/`. `results/hmm/xgboost/predictions.parquet` can be passed to `python -m src.result_maps --predictions`. `notebooks/julia_hmm_viterbi_colab.ipynb` runs the same evaluation locally or in Colab, saved with outputs. Details: `docs/README_JULIA_RUN.md`.
 
 ### Tests
 

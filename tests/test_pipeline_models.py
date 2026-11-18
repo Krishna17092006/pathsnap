@@ -10,7 +10,7 @@ from src.model_zoo import REGISTRY
 from src.pipeline import _model_probabilities, model_input
 
 
-def _rows(n=600, seed=0):
+def _rows(n=1200, seed=0):   # > 1000 rows: QuantileTransformer (gaussian_nb) needs n_quantiles samples
     rng = np.random.default_rng(seed)
     X = pd.DataFrame(rng.normal(size=(n, len(FEATURE_COLUMNS))), columns=FEATURE_COLUMNS)
     y = (X["dist_m"] < -0.3).astype(int).to_numpy()
