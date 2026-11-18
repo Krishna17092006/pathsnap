@@ -27,6 +27,7 @@ pathsnap/
 │   ├── network.py         # road-network geometry, spatial index, connectivity, route helpers
 │   ├── plot_style.py      # shared matplotlib style
 │   ├── maps.py            # Folium map builders
+│   ├── result_maps.py     # result maps + per-fix error breakdown (predictions vs reference route)
 │   ├── eda.py             # exploratory data analysis
 │   ├── config.py          # shared constants (seed, folds, candidate radius, label threshold)
 │   ├── labels.py          # per-fix labels by order-constrained matching to the reference route
@@ -41,7 +42,9 @@ pathsnap/
 ├── results/eda/           # EDA tables (CSV), figures (PNG), summary
 ├── results/candidates/    # label coverage, candidate miss rate vs radius, data decisions
 ├── results/models/        # per-model CV/student_test results, model_comparison.csv, figures
+├── results/result_maps/   # per-method error breakdown (correct / wrong direction / wrong road)
 ├── maps/eda/              # interactive Folium maps (HTML)
+├── maps/results/          # result maps per method (nearest-road baseline now; classifier + HMM later)
 └── docs/guidelines/       # the five official hackathon PDFs
 ```
 
@@ -127,6 +130,27 @@ The UI lists the trips the API reports, sends the chosen trip id to `POST /predi
 For a local test, use `http://127.0.0.1:<port>` rather than `localhost`: on Windows, `localhost` tries IPv6 first and adds about 2 s to every request.
 
 **UI development without the real API:** `python -m ui.mock_api` starts a stand-in server on port 8765 that follows the same API contract. It performs no map matching: the "route" is the raw GPS path and all scores are empty. Every response is marked `mock`, and the UI shows a warning banner.
+
+### Result maps (offline analysis)
+
+```bash
+python -m src.result_maps                       # nearest-road baseline on student_test
+python -m src.result_maps --predictions results/predictions/<name>_student_test.parquet --name <name>
+```
+
+Each student_test trip gets one map (`maps/results/<name>/<trip_id>.html`) showing:
+- GPS fixes, the nearby road network and the reference route
+- classifier-only and HMM predictions
+- red rings where a prediction is wrong
+
+`results/result_maps/<name>_error_breakdown.csv` counts each outcome per trip:
+- correct
+- right road, wrong direction
+- wrong road
+- no prediction
+
+The predictions file has one row per fix: `trip_id, fix_idx, arc_clf[, arc_hmm]`, with `-1` meaning no prediction. These maps use the reference route, so they are for development and the report, never for the evaluator UI.
+
 ### Features
 
 ```bash
