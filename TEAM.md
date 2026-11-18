@@ -283,7 +283,7 @@ Branch: `kkr/data` (and later `kkr/ui`)
 
 Branch: `krishna-jha/features-models`
 
-- [ ] **`src/features.py`:** `add_features(cand_df, trip, net)`. Suggested features (justify each in the report):
+- [x] **`src/features.py`:** `add_features(cand_df, trip, net)`. Suggested features (justify each in the report):
   - `dist_m`, `cand_rank`, `n_cand`, `dist_minus_min` (distance minus the fix's nearest-candidate distance), `dist_ratio`
   - `heading_diff_deg`: angle between the vehicle heading (bearing from fix i-1 to i+1, only when moved more than ~3 m, else NaN → fill) and the arc bearing (u → v). This separates the two directions of a two-way road.
   - `cos_heading_diff`
@@ -291,18 +291,18 @@ Branch: `krishna-jha/features-models`
   - `arc_length_m`, `t_along`, `is_two_way` (reverse arc exists), `out_degree_v`, `in_degree_u`
   - Optional context: whether this arc (or a connected arc) was the nearest candidate at the previous/next fix. Allowed: no labels involved.
   - **Never:** `arc_id`, `trip_id`, `true_arc`, `label`, anything from `.route`.
-- [ ] **`src/evaluate.py`: the evaluation framework everyone uses:**
+- [x] **`src/evaluate.py`: the evaluation framework everyone uses:**
   - `group_cv(model_factory, df, n_folds=5)` with `GroupKFold` on `trip_id` (train only). Preprocessing is fitted inside each fold (use sklearn `Pipeline`).
   - Candidate-level metrics: accuracy, precision, recall, **macro F1**, confusion matrix, **log loss**.
   - Fix-level metrics: **Top-1 accuracy** (argmax probability per valid fix == `true_arc`; a candidate miss counts as wrong) and **candidate miss rate**.
   - Training time and inference time (per 1,000 fixes).
   - Write the result files listed in section 2.4.
-- [ ] **`src/model_zoo.py` + `src/train.py`** (section 2.4)
-- [ ] **Models 1–2:**
+- [x] **`src/model_zoo.py` + `src/train.py`** (section 2.4)
+- [x] **Models 1–2:**
   1. **Logistic Regression** (linear/probabilistic): standardised features, `class_weight` balanced vs none
   2. **KNN** (instance-based): scaling matters. Train on a subsample if slow and say so.
-- [ ] Include the **naive nearest-arc baseline** as a reference row (Top-1 only, no training).
-- [ ] **Model comparison:** `results/models/model_comparison.csv` with all 6 models (from every member), and plots in `results/models/figures/`:
+- [x] Include the **naive nearest-arc baseline** as a reference row (Top-1 only, no training).
+- [x] **Model comparison:** `results/models/model_comparison.csv` with all 6 models (from every member), and plots in `results/models/figures/`: All 6 models are in the table (MLP added from Julia's results in #14).
   - CV macro F1 per model (with fold spread)
   - Student-test Top-1 and macro F1
   - Log loss
@@ -315,13 +315,13 @@ Branch: `krishna-jha/features-models`
 
 Branch: `joshua/models-tuning-api`
 
-- [ ] **Models 4–5** (add to `src/model_zoo.py`, run with Krishna Jha's `src/train.py`):
+- [x] **Models 4–5** (add to `src/model_zoo.py`, run with Krishna Jha's `src/train.py`):
   4. **Random Forest** (bagging ensemble)
   5. **XGBoost** (boosting; already installed)
 - [ ] **Choose the final model** from the comparison:
   - Primary metric: group-CV macro F1 or Top-1. Decide with Krishna Jha and write why.
   - Also consider probability quality (log loss matters because the HMM uses the probabilities) and inference speed.
-- [ ] **`src/tune.py`: Bayesian optimisation with Optuna** (add `optuna` to requirements):
+- [x] **`src/tune.py`: Bayesian optimisation with Optuna** (add `optuna` to requirements): Code by Joshua; run 1 (40 trials) by KKR in `results/tuning/xgboost_run1_with_scale_pos_weight/`; run 2 (in progress) searches with `scale_pos_weight` fixed at 1 and writes `results/tuning/xgboost/`.
   - TPE sampler, `seed=42`, 30–50 trials
   - Objective: mean group-CV score on the 80 train trips only
   - Justified search space. For XGBoost, for example: `n_estimators`, `learning_rate` (log), `max_depth`, `min_child_weight`, `subsample`, `colsample_bytree`, `reg_lambda` (log).
@@ -345,7 +345,7 @@ Branch: `joshua/models-tuning-api`
 
 Branch: `julia/hmm-pipeline`
 
-- [ ] **`src/hmm.py`:**
+- [x] **`src/hmm.py`:**
   - **Hidden states:** the candidate arcs at each fix (from the candidate table / `build_candidates`).
   - **Emission:** `log P(fix | arc)` = log of the classifier probability (clip to ≥ 1e-6). Before models exist, use a Gaussian on distance: `-0.5 * (dist_m / sigma)^2` with sigma ≈ 5–10 m, so you are never blocked.
   - **Transition** from arc `a` (fix t) to arc `b` (fix t+1):
@@ -361,15 +361,15 @@ Branch: `julia/hmm-pipeline`
     - All transitions impossible (disconnected): break the chain and restart Viterbi from the next fix
     - GPS gap larger than G seconds (e.g. 60 s): split the trip into independent segments
     - Very long trips (19k fixes): process segment by segment
-- [ ] **Route metrics** (`src/route_metrics.py`). Define and document:
+- [x] **Route metrics** (`src/route_metrics.py`). Define and document:
   - **Pointwise accuracy:** Top-1 for classifier-only and for HMM, on valid fixes
   - **Route continuity:** share of consecutive fix pairs whose predicted arcs are identical or directly connected (`v[a] == u[b]`)
   - **Sequence-level:** precision/recall/F1 of predicted route arcs vs reference route arcs (optionally length-weighted)
-- [ ] **Decoder tuning:** grid over beta, (sigma), gap threshold and emission weighting on train (or train + student_test). **Never on evaluator data.** Save `results/hmm/decoder_grid.csv`.
-- [ ] **Classifier-only vs classifier + HMM comparison** on student_test: table + plots in `results/hmm/`. Find and show cases where the HMM **did not** help, with a map from KKR's `result_map`.
-- [ ] **`src/pipeline.py`:** `load_artifacts`, `predict_trip`, `score_trip` (section 2.6). `predict_trip` must work on a trip **without** a `.route` file.
-- [ ] **Integration:** run `predict_trip` on all 10 student-test trips. Check timing (the demo needs a response in a few seconds) and robustness (gaps, no candidates, huge networks).
-- [ ] **Model 6: MLP** (neural network). Add it to `src/model_zoo.py` and run it with `src/train.py`. Train epoch by epoch (`partial_fit` loop or PyTorch) and record **train and validation log loss per epoch**. This is the only model allowed to have loss curves. Plot them.
+- [x] **Decoder tuning:** grid over beta, (sigma), gap threshold and emission weighting on train (or train + student_test). **Never on evaluator data.** Save `results/hmm/decoder_grid.csv`. Re-run with the classifier comparison fixed (highest probability, not nearest arc) and a wider grid (beta 25–800, emission weight 0.5–2).
+- [x] **Classifier-only vs classifier + HMM comparison** on student_test: table + plots in `results/hmm/`. Find and show cases where the HMM **did not** help, with a map from KKR's `result_map`.
+- [x] **`src/pipeline.py`:** `load_artifacts`, `predict_trip`, `score_trip` (section 2.6). `predict_trip` must work on a trip **without** a `.route` file.
+- [x] **Integration:** run `predict_trip` on all 10 student-test trips. Check timing (the demo needs a response in a few seconds) and robustness (gaps, no candidates, huge networks).
+- [x] **Model 6: MLP** (neural network). Add it to `src/model_zoo.py` and run it with `src/train.py`. Train epoch by epoch (`partial_fit` loop or PyTorch) and record **train and validation log loss per epoch**. This is the only model allowed to have loss curves. Plot them. Trained with Julia's own script (`notebooks/MLP_Training.ipynb`); results in `results/models/mlp/` and in the comparison table.
 - [ ] Report: **§3.2 subsection for the MLP** (with loss curves), **§5 HMM and Viterbi** (all six required questions), plus integration notes.
 
 **Done when:** `predict_trip` runs on every student-test trip without touching `.route`, and the classifier-only vs HMM table exists.

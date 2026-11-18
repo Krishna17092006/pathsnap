@@ -3,16 +3,16 @@
 Examples
 --------
 # Recommended first run: tune on a small TRAIN subset, evaluate all 10 student-test trips
-python run_julia_hmm.py
+python scripts/run_julia_hmm.py
 
 # Skip tuning and use the current artifacts/hmm.json
-python run_julia_hmm.py --skip-tune
+python scripts/run_julia_hmm.py --skip-tune
 
 # Tune on more training trips (can take substantially longer)
-python run_julia_hmm.py --tune-trips 5
+python scripts/run_julia_hmm.py --tune-trips 5
 
 # Quick smoke test: tune on 2 train trips and evaluate 2 student-test trips
-python run_julia_hmm.py --quick-eval
+python scripts/run_julia_hmm.py --quick-eval
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]   # scripts/ -> project root
 
 
 def run_step(command: list[str], label: str) -> None:

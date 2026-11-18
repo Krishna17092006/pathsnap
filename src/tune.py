@@ -171,7 +171,10 @@ def _suggest_params(trial: optuna.Trial, model_name: str) -> dict[str, Any]:
             "colsample_bytree": trial.suggest_float("colsample_bytree", 0.60, 1.0),
             "reg_lambda": trial.suggest_float("reg_lambda", 1e-2, 20.0, log=True),
             "gamma": trial.suggest_float("gamma", 0.0, 5.0),
-            "scale_pos_weight": trial.suggest_float("scale_pos_weight", 0.5, 10.0, log=True),
+            # scale_pos_weight is fixed at 1 (not searched). Run 1 searched it and picked 6.6: Top-1 was
+            # unchanged but log loss rose from 0.060 to 0.089, because up-weighting the positive class
+            # inflates the probabilities that the HMM uses as emissions.
+            # See results/tuning/xgboost_run1_with_scale_pos_weight/.
         }
     if model_name == "random_forest":
         return {
