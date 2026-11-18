@@ -589,8 +589,11 @@ def write_summary(t: dict, issues: pd.DataFrame, arrays: dict, partition_of: dic
           f"- Coordinate order is (longitude, latitude): latitudes lie in [{f(g.lat_min.min(), 2)}, {f(g.lat_max.max(), 2)}] "
           f"and the GPS fixes fall onto the supplied road network (section 8).",
           f"- Largest trip extent: {f(g.extent_ew_km.max())} km east-west, {f(g.extent_ns_km.max())} km north-south.",
-          f"- Local equirectangular projection vs haversine (random fix-node pairs > 100 m apart): max relative error "
-          f"{g.proj_max_rel_err_pct.max():.3f}%, max absolute error {f(g.proj_max_abs_err_m.max(), 2)} m over all trips.", ""]
+          f"- Local equirectangular projection vs haversine (random fix-node pairs > 100 m apart, up to tens of km): "
+          f"max relative error {g.proj_max_rel_err_pct.max():.3f}% over all trips (median trip "
+          f"{g.proj_max_rel_err_pct.median():.3f}%). Distortion is a scale error, so at candidate-search distances "
+          f"(<= 100 m) the error is below {g.proj_max_rel_err_pct.max():.3f} m; the projection is adequate for geometry, "
+          f"and haversine is used for reported lengths.", ""]
 
     L += ["## 6. Road networks", ""]
     for p in parts:
@@ -623,6 +626,12 @@ def write_summary(t: dict, issues: pd.DataFrame, arrays: dict, partition_of: dic
                  f"{ap.nearest_arc_on_route_share.max() * 100:.1f}%).")
         L.append(f"  - Nearest route arc moves backwards along the route in {ap.nearest_route_arc_backward_share.median() * 100:.1f}% "
                  f"of steps (median over trips).")
+        gp = g[g.partition == p].merge(ap, on=["partition", "trip_id"])
+        far = ((1 - gp.share_within_100m_of_route) * gp.n_points).round().astype(int)
+        if far.sum() > 0:
+            top = gp.assign(far=far).sort_values("far", ascending=False).head(3)
+            parts_txt = ", ".join(f"{r.trip_id} ({r.far:,} of {r.n_points:,} fixes)" for r in top.itertuples() if r.far > 0)
+            L.append(f"  - Fixes more than 100 m from the route: {int(far.sum()):,}; largest contributors: {parts_txt}.")
     L += ["", "## 9. Candidate density", ""]
     for p in parts:
         ap = al[al.partition == p]
@@ -689,8 +698,9 @@ def main(argv=None) -> None:
         typical = tr.iloc[(tr.n_points - tr.n_points.median()).abs().argmin()].trip_id
         largest_gap = tr.loc[tr.max_gap_s.idxmax()].trip_id
         tr_al = al[al.partition == "train"]
-        noisiest = tr_al.loc[tr_al.dist_route_p95_m.idxmax()].trip_id if "dist_route_p95_m" in tr_al else typical
-        for tid in (typical, largest_gap, noisiest):
+        worst_aligned = (tr_al.loc[tr_al.share_within_50m_of_route.idxmin()].trip_id
+                         if "share_within_50m_of_route" in tr_al else typical)
+        for tid in (typical, largest_gap, worst_aligned):
             if ("train", tid) not in examples:
                 examples.append(("train", tid))
     pd.DataFrame(examples, columns=["partition", "trip_id"]).to_csv(RESULTS_DIR / "selected_trips.csv", index=False)

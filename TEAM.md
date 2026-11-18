@@ -15,7 +15,7 @@ Each member owns one stage of the pipeline end to end: code, experiments, and th
 
 ## 1. Project state (what already exists)
 
-Repository: `https://github.com/Krishna17092006/pathsnap` (private until submission; it must be public at submission).
+Repository: `https://github.com/Krishna17092006/pathsnap` (private; collaborators: Kr1491, juliajikku, jjosh2005; it must be made public at submission).
 
 ```
 pathsnap/
