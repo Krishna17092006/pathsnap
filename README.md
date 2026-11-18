@@ -99,6 +99,25 @@ Outputs:
 
 The column definitions are in `TEAM.md` section 2.2.
 
+### Evaluator UI (Laptop 2)
+
+```bash
+streamlit run ui/app.py
+```
+
+Enter the API address in the sidebar, for example `http://192.168.1.20:8000` (Laptop 1's IP and the API port), or set it beforehand:
+
+```bash
+set PATHSNAP_API_URL=http://192.168.1.20:8000      # Windows cmd
+export PATHSNAP_API_URL=http://192.168.1.20:8000   # bash
+```
+
+The UI lists the trips the API reports, sends the chosen trip id to `POST /predict/{trip_id}`, and shows the predicted route on a map with the scores and timing returned by the API. It never reads trip files or ground truth.
+
+For a local test, use `http://127.0.0.1:<port>` rather than `localhost`: on Windows, `localhost` tries IPv6 first and adds about 2 s to every request.
+
+**UI development without the real API:** `python -m ui.mock_api` starts a stand-in server on port 8765 that follows the same API contract. It performs no map matching: the "route" is the raw GPS path and all scores are empty. Every response is marked `mock`, and the UI shows a warning banner.
+
 ## Data-partition rules
 
 - `train` (80 trips) is used for fitting, cross-validation and tuning.
