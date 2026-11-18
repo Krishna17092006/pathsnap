@@ -370,7 +370,7 @@ Branch: `julia/hmm-pipeline`
 - [x] **`src/pipeline.py`:** `load_artifacts`, `predict_trip`, `score_trip` (section 2.6). `predict_trip` must work on a trip **without** a `.route` file.
 - [x] **Integration:** run `predict_trip` on all 10 student-test trips. Check timing (the demo needs a response in a few seconds) and robustness (gaps, no candidates, huge networks).
 - [x] **Model 6: MLP** (neural network). Add it to `src/model_zoo.py` and run it with `src/train.py`. Train epoch by epoch (`partial_fit` loop or PyTorch) and record **train and validation log loss per epoch**. This is the only model allowed to have loss curves. Plot them. Trained with Julia's own script (`notebooks/MLP_Training.ipynb`); results in `results/models/mlp/` and in the comparison table.
-- [ ] Report: **§3.2 subsection for the MLP** (with loss curves), **§5 HMM and Viterbi** (all six required questions), plus integration notes.
+- [x] Report: **§3.2 subsection for the MLP** (with loss curves), **§5 HMM and Viterbi** (all six required questions), plus integration notes. Drafted in `docs/Julia_Report_Sections.md`, ready for KKR to assemble into the PDF.
 
 **Done when:** `predict_trip` runs on every student-test trip without touching `.route`, and the classifier-only vs HMM table exists.
 
