@@ -1,0 +1,32 @@
+{
+  "partition": "student_test",
+  "emission_model": "xgboost",
+  "model_file": "artifacts/model.joblib",
+  "decoder": {
+    "beta": 100.0,
+    "sigma": 8.0,
+    "gap_threshold_s": 30.0,
+    "emission_weight": 1.0,
+    "max_speed_mps": 50.0,
+    "min_transition_m": 200.0,
+    "probability_epsilon": 1e-06
+  },
+  "n_student_test_trips": 10,
+  "n_integration_failures": 0,
+  "student_test_means": {
+    "top1_classifier": 0.8844585197295267,
+    "top1_hmm": 0.8664522422894232,
+    "route_continuity_clf": 0.9442782748115255,
+    "route_continuity_hmm": 0.9633389974712532,
+    "classifier_route_f1": 0.7182551443690277,
+    "hmm_route_f1": 0.743395442823418
+  },
+  "trips_improved_by_hmm": {
+    "top1": 2,
+    "route_continuity": 10,
+    "route_f1": 8
+  },
+  "mean_inference_ms": 3365.2023200003896,
+  "max_inference_ms": 6916.95140000229,
+  "note": "predict_trip ran with trip.route = None; the reference route was used only by score_trip. Timings depend on the machine."
+}

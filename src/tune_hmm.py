@@ -159,7 +159,8 @@ def run(quick: bool = False, max_trips: int = 3, betas=DEFAULT_BETAS, weights=DE
     out = pd.DataFrame(rows).sort_values(
         ["objective", "mean_top1_hmm", "mean_route_continuity_hmm"],
         ascending=False).reset_index(drop=True)
-    out_dir = RESULTS_DIR / "hmm"
+    # One folder per emission model, like results/models/<model>/.
+    out_dir = RESULTS_DIR / "hmm" / art["model_name"]
     out_dir.mkdir(parents=True, exist_ok=True)
     out.to_csv(out_dir / "decoder_grid.csv", index=False)
     best = out.iloc[0]
@@ -170,7 +171,7 @@ def run(quick: bool = False, max_trips: int = 3, betas=DEFAULT_BETAS, weights=DE
         json.dump(best_cfg.to_dict(), f, indent=2)
     summary = {"partition": "train", "trip_ids": trip_ids, "n_trips": len(trip_ids),
                "n_configurations": len(combos), "seed": SEED,
-               "emission_source": emission_source,
+               "emission_source": emission_source, "emission_model": art["model_name"],
                "best_config": best_cfg.to_dict(),
                "grid": {"betas": list(betas), "emission_weights": list(weights), "gap_threshold_s": list(gaps)},
                "classifier_baseline": "highest classifier probability per fix (nearest candidate without a model)",
