@@ -1,0 +1,21 @@
+{
+  "partition": "train",
+  "trip_ids": [
+    "00000026",
+    "00000006"
+  ],
+  "n_trips": 2,
+  "n_configurations": 8,
+  "seed": 42,
+  "emission_source": "classifier_probability",
+  "best_config": {
+    "beta": 100.0,
+    "sigma": 8.0,
+    "gap_threshold_s": 30.0,
+    "emission_weight": 1.0,
+    "max_speed_mps": 50.0,
+    "min_transition_m": 200.0,
+    "probability_epsilon": 1e-06
+  },
+  "selection_note": "Deterministic size-stratified subset of TRAIN trips with <=1500 fixes; use --max-trips 80 for the full training partition."
+}
