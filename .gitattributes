@@ -1,0 +1,4 @@
+# Raw dataset files must stay byte-identical to the originals (no line-ending conversion)
+data/train/** -text
+data/student_test/** -text
+*.pdf binary
